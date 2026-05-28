@@ -5,7 +5,7 @@ import {
   Area, Legend
 } from "recharts";
 import { supabase } from '../lib/supabase';
-
+import AutoUpdate from '../components/AutoUpdate';
 // ═══════════════════════════════════════════════════════════════
 // DATI BASE 2026 (fallback se Supabase non risponde)
 // ═══════════════════════════════════════════════════════════════
@@ -848,6 +848,7 @@ function TabEstrazioni({onUpdate}){
   return(
     <div>
       <h2 style={{color:C.green,fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>📥 Inserimento Nuove Estrazioni</h2>
+    <AutoUpdate onUpdate={()=>window.location.reload()}/>     
       <div style={{background:`${C.teal}11`,border:`1px solid ${C.teal}33`,borderRadius:10,padding:"8px 12px",marginBottom:12,fontSize:11}}>
         <span style={{color:C.teal}}>🔗 Database Supabase collegato — </span>
         <span style={{color:C.dim}}>le nuove estrazioni vengono salvate nel DB e sono disponibili a tutti</span>
