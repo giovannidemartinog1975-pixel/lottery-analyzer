@@ -2,105 +2,35 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, createContext
 import {
   ComposedChart, LineChart, BarChart, Line, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine,
-  AreaChart, Area, Legend
+  Area, Legend
 } from "recharts";
+import { supabase } from '../lib/supabase';
 
-const DRAWS = [
-  { n:1,  date:"02/01", nums:[29,33,47,56,69,89], jolly:16, superstar:7 },
-  { n:2,  date:"03/01", nums:[16,30,32,43,68,76], jolly:36, superstar:58 },
-  { n:3,  date:"05/01", nums:[11,13,17,56,80,84], jolly:41, superstar:13 },
-  { n:4,  date:"08/01", nums:[35,42,45,53,55,88], jolly:66, superstar:52 },
-  { n:5,  date:"09/01", nums:[31,33,61,68,71,72], jolly:87, superstar:18 },
-  { n:6,  date:"10/01", nums:[11,19,24,66,82,88], jolly:58, superstar:48 },
-  { n:7,  date:"12/01", nums:[1,7,11,14,37,58],   jolly:70, superstar:22 },
-  { n:8,  date:"13/01", nums:[20,29,56,68,72,74], jolly:35, superstar:50 },
-  { n:9,  date:"15/01", nums:[44,49,60,69,73,85], jolly:36, superstar:1 },
-  { n:10, date:"16/01", nums:[14,21,24,52,80,86], jolly:57, superstar:14 },
-  { n:11, date:"17/01", nums:[37,41,56,65,83,86], jolly:79, superstar:82 },
-  { n:12, date:"20/01", nums:[8,13,25,60,72,74],  jolly:78, superstar:34 },
-  { n:13, date:"22/01", nums:[2,30,52,56,57,78],  jolly:59, superstar:25 },
-  { n:14, date:"23/01", nums:[26,11,19,88,90,52], jolly:69, superstar:52 },
-  { n:15, date:"24/01", nums:[22,37,55,61,68,71], jolly:21, superstar:18 },
-  { n:16, date:"27/01", nums:[11,19,27,31,54,84], jolly:38, superstar:37 },
-  { n:17, date:"29/01", nums:[29,30,34,56,66,80], jolly:88, superstar:11 },
-  { n:18, date:"30/01", nums:[32,33,39,40,52,86], jolly:63, superstar:16 },
-  { n:19, date:"31/01", nums:[2,6,7,33,73,78],    jolly:11, superstar:80 },
-  { n:20, date:"03/02", nums:[11,16,17,41,42,46], jolly:70, superstar:57 },
-  { n:21, date:"05/02", nums:[6,26,27,57,68,90],  jolly:41, superstar:30 },
-  { n:22, date:"06/02", nums:[6,8,17,31,36,75],   jolly:90, superstar:82 },
-  { n:23, date:"07/02", nums:[4,7,12,30,69,81],   jolly:41, superstar:67 },
-  { n:24, date:"10/02", nums:[1,9,15,29,39,63],   jolly:73, superstar:21 },
-  { n:25, date:"12/02", nums:[5,11,35,52,80,85],  jolly:66, superstar:29 },
-  { n:26, date:"13/02", nums:[1,5,25,71,76,83],   jolly:37, superstar:3 },
-  { n:27, date:"14/02", nums:[5,23,40,47,80,85],  jolly:6,  superstar:47 },
-  { n:28, date:"17/02", nums:[16,21,42,45,52,88], jolly:58, superstar:21 },
-  { n:29, date:"19/02", nums:[20,39,40,43,76,90], jolly:53, superstar:53 },
-  { n:30, date:"20/02", nums:[30,34,41,42,49,83], jolly:64, superstar:77 },
-  { n:31, date:"21/02", nums:[49,58,60,66,68,81], jolly:75, superstar:58 },
-  { n:32, date:"24/02", nums:[4,18,23,26,45,87],  jolly:82, superstar:29 },
-  { n:33, date:"26/02", nums:[18,30,36,52,67,72], jolly:69, superstar:47 },
-  { n:34, date:"27/02", nums:[10,14,49,55,71,79], jolly:80, superstar:36 },
-  { n:35, date:"28/02", nums:[14,17,33,63,64,80], jolly:15, superstar:27 },
-  { n:36, date:"03/03", nums:[4,16,42,48,56,68],  jolly:26, superstar:83 },
-  { n:37, date:"05/03", nums:[7,23,39,62,63,78],  jolly:22, superstar:35 },
-  { n:38, date:"06/03", nums:[4,17,22,37,50,88],  jolly:20, superstar:2 },
-  { n:39, date:"07/03", nums:[3,12,18,40,45,69],  jolly:5,  superstar:49 },
-  { n:40, date:"10/03", nums:[8,34,42,47,55,83],  jolly:4,  superstar:42 },
-  { n:41, date:"12/03", nums:[8,24,25,62,63,64],  jolly:43, superstar:54 },
-  { n:42, date:"13/03", nums:[3,11,13,20,53,61],  jolly:88, superstar:43 },
-  { n:43, date:"14/03", nums:[3,6,33,63,88,89],   jolly:18, superstar:87 },
-  { n:44, date:"17/03", nums:[2,13,16,41,53,56],  jolly:60, superstar:6 },
-  { n:45, date:"19/03", nums:[19,39,45,54,62,89], jolly:42, superstar:45 },
-  { n:46, date:"20/03", nums:[14,32,45,51,54,87], jolly:61, superstar:50 },
-  { n:47, date:"21/03", nums:[9,26,33,49,51,55],  jolly:50, superstar:4 },
-  { n:48, date:"24/03", nums:[6,54,60,64,74,87],  jolly:10, superstar:65 },
-  { n:49, date:"26/03", nums:[24,26,39,69,77,80], jolly:82, superstar:3 },
-  { n:50, date:"27/03", nums:[6,22,27,43,58,64],  jolly:10, superstar:74 },
-  { n:51, date:"28/03", nums:[9,45,62,67,68,81],  jolly:36, superstar:54 },
-  { n:52, date:"31/03", nums:[1,3,39,46,47,61],   jolly:25, superstar:67 },
-  { n:53, date:"02/04", nums:[18,24,25,32,36,63], jolly:40, superstar:80 },
-  { n:54, date:"03/04", nums:[28,52,53,64,66,72], jolly:44, superstar:6 },
-  { n:55, date:"04/04", nums:[8,21,29,46,60,81],  jolly:42, superstar:80 },
-  { n:56, date:"07/04", nums:[10,16,18,47,50,59], jolly:7,  superstar:60 },
-  { n:57, date:"09/04", nums:[2,30,38,63,74,84],  jolly:19, superstar:82 },
-  { n:58, date:"10/04", nums:[3,10,13,17,58,90],  jolly:32, superstar:7 },
-  { n:59, date:"11/04", nums:[19,28,38,48,77,85], jolly:59, superstar:57 },
-  { n:60, date:"14/04", nums:[3,5,20,27,35,66],   jolly:17, superstar:6 },
-  { n:61, date:"16/04", nums:[9,11,12,38,44,54],  jolly:60, superstar:39 },
-  { n:62, date:"17/04", nums:[13,27,45,53,57,84], jolly:34, superstar:63 },
-  { n:63, date:"18/04", nums:[11,22,28,33,68,77], jolly:9,  superstar:70 },
-  { n:64, date:"21/04", nums:[18,19,40,43,56,77], jolly:6,  superstar:65 },
-  { n:65, date:"23/04", nums:[18,24,28,35,56,58], jolly:72, superstar:57 },
-  { n:66, date:"24/04", nums:[6,13,33,37,68,82],  jolly:56, superstar:20 },
-  { n:67, date:"27/04", nums:[40,57,62,64,85,87], jolly:23, superstar:56 },
-  { n:68, date:"28/04", nums:[29,42,43,47,57,60], jolly:27, superstar:30 },
-  { n:69, date:"30/04", nums:[6,7,15,44,52,58],   jolly:40, superstar:16 },
-  { n:70, date:"02/05", nums:[7,58,60,79,84,86],  jolly:2,  superstar:19 },
-  { n:71, date:"04/05", nums:[3,14,31,46,61,63],  jolly:75, superstar:24 },
-  { n:72, date:"05/05", nums:[24,34,45,55,81,87], jolly:23, superstar:52 },
-  { n:73, date:"07/05", nums:[1,34,48,66,69,73],  jolly:75, superstar:58 },
-  { n:74, date:"08/05", nums:[8,16,41,47,51,90],  jolly:82, superstar:69 },
-  { n:75, date:"09/05", nums:[9,27,30,42,43,62],  jolly:11, superstar:11 },
-  { n:76, date:"12/05", nums:[2,28,31,57,58,59],  jolly:5,  superstar:2 },
-  { n:77, date:"14/05", nums:[31,56,72,74,84,85], jolly:18, superstar:34 },
-  { n:78, date:"15/05", nums:[5,13,17,28,47,68],  jolly:42, superstar:19 },
-  { n:79, date:"16/05", nums:[7,12,60,69,89,90],  jolly:59, superstar:36 },
-  { n:80, date:"19/05", nums:[49,57,61,73,79,86], jolly:8,  superstar:36 },
-  { n:81, date:"21/05", nums:[1,38,57,58,64,81],  jolly:28, superstar:50 },
-  { n:82, date:"22/05", nums:[5,17,65,71,83,87],  jolly:50, superstar:86 },
-  { n:83, date:"24/05", nums:[14,29,34,57,59,69], jolly:16, superstar:16 },
-  { n:84, date:"16/05", nums:[7,10,35,41,45,61],  jolly:2,  superstar:45 },
+// ═══════════════════════════════════════════════════════════════
+// DATI BASE 2026 (fallback se Supabase non risponde)
+// ═══════════════════════════════════════════════════════════════
+const DRAWS_BASE = [
+  { n:1,  date:"02/01/2026", nums:[29,33,47,56,69,89], jolly:16, superstar:7 },
+  { n:2,  date:"03/01/2026", nums:[16,30,32,43,68,76], jolly:36, superstar:58 },
+  { n:3,  date:"05/01/2026", nums:[11,13,17,56,80,84], jolly:41, superstar:13 },
+  { n:4,  date:"08/01/2026", nums:[35,42,45,53,55,88], jolly:66, superstar:52 },
+  { n:5,  date:"09/01/2026", nums:[31,33,61,68,71,72], jolly:87, superstar:18 },
+  { n:6,  date:"10/01/2026", nums:[11,19,24,66,82,88], jolly:58, superstar:48 },
+  { n:7,  date:"12/01/2026", nums:[1,7,11,14,37,58],   jolly:70, superstar:22 },
+  { n:8,  date:"13/01/2026", nums:[20,29,56,68,72,74], jolly:35, superstar:50 },
+  { n:9,  date:"15/01/2026", nums:[44,49,60,69,73,85], jolly:36, superstar:1 },
+  { n:10, date:"16/01/2026", nums:[14,21,24,52,80,86], jolly:57, superstar:14 },
+  { n:84, date:"26/05/2026", nums:[7,10,35,41,45,61],  jolly:2,  superstar:45 },
 ];
 
 const MU_TEO    = 277.5;
 const SIGMA_TEO = 62;
-const JACKPOT = "163.200.000 €";
+const JACKPOT   = "163.200.000 €";
 const ACCENT    = "#D4AF37";
 const POOL      = 90;
 const PICK      = 6;
-const SUPERSTAR_POOL = 90;
 const POPULAR   = new Set([1,2,3,4,5,10,20,30,40,50]);
-const LS_KEY_S = "draws_superenalotto_v1";
+const LS_KEY_S  = "draws_superenalotto_v1";
 const LS_TICKETS_S = "tickets_superenalotto_v1";
 
 const DrawsContext = createContext([]);
@@ -109,11 +39,11 @@ const useDraws = () => useContext(DrawsContext);
 const PRIZE_LABELS = {0:"–",1:"–",2:"Punto 2",3:"Punto 3",4:"Punto 4",5:"Punto 5",6:"🏆 PUNTI 6!"};
 const PRIZE_COLORS = {0:"#4A4A6A",1:"#4A4A6A",2:"#4A8FD4",3:"#2BA89A",4:"#E8B84B",5:"#F07030",6:"#C94040"};
 
-const sm   = a => a.reduce((s,v)=>s+v,0);
-const avg  = a => sm(a)/a.length;
-const std  = a => { const m=avg(a); return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/a.length); };
-const clamp= (v,lo,hi) => Math.max(lo,Math.min(hi,v));
-const zOf  = (v,mu,sigma) => (v-mu)/sigma;
+const sm    = a => a.reduce((s,v)=>s+v,0);
+const avg   = a => sm(a)/a.length;
+const std   = a => { const m=avg(a); return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/a.length); };
+const clamp = (v,lo,hi) => Math.max(lo,Math.min(hi,v));
+const zOf   = (v,mu,sigma) => (v-mu)/sigma;
 
 function mkRng(seed){
   let s=seed>>>0;
@@ -209,7 +139,7 @@ function calcSSAffinita(num, allDraws, ticketSum, sigmaRef){
 
 function getSSSuggestions(allDraws, ticketSum, sigmaRef){
   const scores=Array.from({length:90},(_,i)=>i+1).map(n=>({
-    num:n, freq:allDraws.filter(d=>d.superstar===n).length,
+    num:n,freq:allDraws.filter(d=>d.superstar===n).length,
     ritardo:(()=>{for(let i=allDraws.length-1;i>=0;i--){if(allDraws[i].superstar===n)return allDraws.length-1-i;}return allDraws.length;})(),
     score:calcSSAffinita(n,allDraws,ticketSum,sigmaRef),
   }));
@@ -291,7 +221,7 @@ function drawCanvas(canvas,series,frame,showMA5,hovered,W,H){
     const x=toX(i);
     if(i===0||i===total-1||i%Math.ceil(total/6)===0){
       ctx.fillStyle="rgba(255,255,255,0.35)"; ctx.font="9px monospace"; ctx.textAlign="center";
-      ctx.fillText(series[i].date,x,PAD.top+CH+14);
+      ctx.fillText(series[i].date?.substring(0,5)||"",x,PAD.top+CH+14);
     }
   }
   ctx.strokeStyle="rgba(255,255,255,0.12)"; ctx.lineWidth=1;
@@ -329,7 +259,7 @@ function drawCanvas(canvas,series,frame,showMA5,hovered,W,H){
     ctx.fillStyle="rgba(8,8,20,0.95)"; ctx.strokeStyle=`${ACCENT}66`; ctx.lineWidth=1;
     ctx.beginPath(); ctx.roundRect(bx,by,162,80,8); ctx.fill(); ctx.stroke();
     ctx.fillStyle=ACCENT; ctx.font="bold 11px monospace"; ctx.textAlign="left";
-    ctx.fillText(`#${d.n} · ${d.date}`,bx+10,by+18);
+    ctx.fillText(`${d.date?.substring(0,5)||""}`,bx+10,by+18);
     ctx.fillStyle=d.sum>MU_TEO?C.orange:C.teal;
     ctx.fillText(`Σ = ${d.sum}`,bx+10,by+34);
     ctx.fillStyle=ACCENT; ctx.fillText(`μ = ${d.mu.toFixed(1)}`,bx+10,by+50);
@@ -384,15 +314,17 @@ function TabAnimazione(){
   const end=()=>{cancelAnimationFrame(rafRef.current);setPlaying(false);frameRef.current=total;setFrame(total);};
   const vi=Math.min(Math.ceil(frame)-1,total-1);
   const cur=series[vi]||series[0];
+  const sums=series.map(d=>d.sum);
+  const muReale=avg(sums);
   return(
     <div ref={containerRef}>
       <h2 style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:16,marginBottom:12}}>📈 Traiettoria Media Progressiva</h2>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(90px,1fr))",gap:6,marginBottom:12}}>
-        <KpiCard label="Concorso" value={`#${cur.n}`} sub={cur.date}/>
-        <KpiCard label="Σ Sestina" value={cur.sum} color={cur.sum>MU_TEO?C.orange:C.teal} sub={`Δ=${cur.sum>MU_TEO?"+":""}${cur.sum-MU_TEO}`}/>
-        <KpiCard label="μ progress." value={cur.mu.toFixed(1)} color={ACCENT}/>
-        <KpiCard label="z-score" value={cur.zScore.toFixed(2)} color={Math.abs(cur.zScore)<1?C.green:Math.abs(cur.zScore)<2?C.orange:C.red}/>
-        <KpiCard label="SuperStar" value={cur.superstar||"—"} color="#FFD700"/>
+        <KpiCard label="Estrazioni" value={allDraws.length} sub={`${series[0]?.date?.substring(0,5)||""} → oggi`}/>
+        <KpiCard label="Σ ultima" value={cur.sum} color={cur.sum>MU_TEO?C.orange:C.teal}/>
+        <KpiCard label="μ progress." value={cur.mu?.toFixed(1)} color={ACCENT}/>
+        <KpiCard label="μ reale" value={muReale.toFixed(1)} color={C.teal} sub={`Δ ${(muReale-MU_TEO).toFixed(1)}`}/>
+        <KpiCard label="z-score" value={cur.zScore?.toFixed(2)} color={Math.abs(cur.zScore)<1?C.green:Math.abs(cur.zScore)<2?C.orange:C.red}/>
       </div>
       <div style={{borderRadius:10,overflow:"hidden",border:"1px solid #1a1a2e",marginBottom:10}}>
         <canvas ref={canvasRef} style={{display:"block",cursor:"crosshair",width:"100%"}} onMouseMove={onMove} onMouseLeave={()=>setHovered(null)} onTouchMove={onMove} onTouchEnd={()=>setHovered(null)}/>
@@ -401,35 +333,21 @@ function TabAnimazione(){
         onChange={e=>{cancelAnimationFrame(rafRef.current);setPlaying(false);frameRef.current=+e.target.value;setFrame(+e.target.value);}}
         style={{width:"100%",accentColor:ACCENT,cursor:"pointer",marginBottom:8}}/>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:C.dim,marginBottom:12}}>
-        <span>{series[0]?.date}</span><span style={{color:ACCENT}}>{Math.ceil(frame)}/{total}</span><span>{series[total-1]?.date}</span>
+        <span>{series[0]?.date?.substring(0,5)||""}</span><span style={{color:ACCENT}}>{Math.ceil(frame)}/{total}</span><span>{series[total-1]?.date?.substring(0,5)||""}</span>
       </div>
       <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginBottom:12}}>
         {[{i:"⟪",a:reset},{i:playing?"⏸":"▶",a:playing?pause:play,gold:true},{i:"⟫",a:end}].map((b,idx)=>(
-          <button key={idx} onClick={b.a} style={{
-            background:b.gold?`linear-gradient(135deg,${ACCENT},${C.teal})`:"rgba(255,255,255,0.05)",
-            color:b.gold?"#fff":"#ccc",border:`1px solid ${b.gold?ACCENT:"rgba(255,255,255,0.1)"}`,
-            borderRadius:10,padding:"9px 16px",fontSize:b.gold?18:14,fontWeight:900,minWidth:46,cursor:"pointer",
-          }}>{b.i}</button>
+          <button key={idx} onClick={b.a} style={{background:b.gold?`linear-gradient(135deg,${ACCENT},${C.teal})`:"rgba(255,255,255,0.05)",color:b.gold?"#fff":"#ccc",border:`1px solid ${b.gold?ACCENT:"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"9px 16px",fontSize:b.gold?18:14,fontWeight:900,minWidth:46,cursor:"pointer"}}>{b.i}</button>
         ))}
-        {[0.2,0.5,1,2].map(s=>(
-          <button key={s} onClick={()=>setSpeed(s)} style={{
-            background:speed===s?`${C.teal}22`:"transparent",color:speed===s?C.teal:C.dim,
-            border:`1px solid ${speed===s?C.teal:"rgba(255,255,255,0.08)"}`,
-            borderRadius:6,padding:"5px 9px",fontSize:10,cursor:"pointer",fontFamily:"inherit",
-          }}>{s}×</button>
-        ))}
-        <button onClick={()=>setShowMA5(v=>!v)} style={{
-          background:showMA5?`${ACCENT}11`:"transparent",color:showMA5?`${ACCENT}99`:C.dim,
-          border:`1px solid ${showMA5?`${ACCENT}44`:"rgba(255,255,255,0.08)"}`,
-          borderRadius:16,padding:"5px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit",
-        }}>MA5</button>
+        {[0.2,0.5,1,2].map(s=>(<button key={s} onClick={()=>setSpeed(s)} style={{background:speed===s?`${C.teal}22`:"transparent",color:speed===s?C.teal:C.dim,border:`1px solid ${speed===s?C.teal:"rgba(255,255,255,0.08)"}`,borderRadius:6,padding:"5px 9px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{s}×</button>))}
+        <button onClick={()=>setShowMA5(v=>!v)} style={{background:showMA5?`${ACCENT}11`:"transparent",color:showMA5?`${ACCENT}99`:C.dim,border:`1px solid ${showMA5?`${ACCENT}44`:"rgba(255,255,255,0.08)"}`,borderRadius:16,padding:"5px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>MA5</button>
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginTop:14}}>
         <div style={{color:ACCENT,fontWeight:700,fontSize:13,marginBottom:8}}>☯️ Andamento Pari / Dispari</div>
         <ResponsiveContainer width="100%" height={140}>
-          <BarChart data={allDraws.map(d=>({date:d.date,pari:d.nums.filter(n=>n%2===0).length,dispari:d.nums.filter(n=>n%2!==0).length}))} margin={{top:4,right:8,bottom:0,left:-20}}>
+          <BarChart data={allDraws.slice(-100).map(d=>({date:d.date?.substring(0,5)||"",pari:d.nums.filter(n=>n%2===0).length,dispari:d.nums.filter(n=>n%2!==0).length}))} margin={{top:4,right:8,bottom:0,left:-20}}>
             <CartesianGrid strokeDasharray="2 4" stroke="#0e0e1c"/>
-            <XAxis dataKey="date" tick={{fill:C.dim,fontSize:8}} interval={Math.ceil(allDraws.length/8)}/>
+            <XAxis dataKey="date" tick={{fill:C.dim,fontSize:8}} interval={Math.ceil(Math.min(allDraws.length,100)/8)}/>
             <YAxis domain={[0,6]} ticks={[0,2,4,6]} tick={{fill:C.dim,fontSize:8}}/>
             <Tooltip content={<TT/>}/>
             <ReferenceLine y={3} stroke={`${ACCENT}55`} strokeDasharray="5 3"/>
@@ -446,15 +364,13 @@ function TabAnimazione(){
           const DC=["#E8B84B","#F07030","#C94040","#8A5CC4","#4A8FD4","#2BA89A","#4A9E5C","#F07030","#E8B84B"];
           const medie=decine.map((dec,i)=>({...dec,media:allDraws.reduce((s,d)=>s+d.nums.filter(n=>n>=dec.min&&n<=dec.max).length,0)/allDraws.length,col:DC[i]}));
           const maxMedia=Math.max(...medie.map(m=>m.media));
-          return(
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(60px,1fr))",gap:4}}>
-              {medie.map((m,i)=>(<div key={m.label} style={{background:m.media===maxMedia?`${DC[i]}18`:"#080816",border:`1px solid ${m.media===maxMedia?DC[i]:C.border}`,borderRadius:7,padding:"6px 4px",textAlign:"center"}}>
-                <div style={{color:DC[i],fontSize:8,fontWeight:700}}>{m.label}</div>
-                <div style={{background:"#0a0a18",borderRadius:2,height:3,overflow:"hidden",margin:"2px 0"}}><div style={{background:DC[i],height:"100%",width:`${(m.media/Math.max(maxMedia,0.1)*100)}%`}}/></div>
-                <div style={{color:m.media===maxMedia?DC[i]:C.text,fontSize:11,fontWeight:700,fontFamily:"monospace"}}>{m.media.toFixed(2)}</div>
-              </div>))}
-            </div>
-          );
+          return(<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(60px,1fr))",gap:4}}>
+            {medie.map((m,i)=>(<div key={m.label} style={{background:m.media===maxMedia?`${DC[i]}18`:"#080816",border:`1px solid ${m.media===maxMedia?DC[i]:C.border}`,borderRadius:7,padding:"6px 4px",textAlign:"center"}}>
+              <div style={{color:DC[i],fontSize:8,fontWeight:700}}>{m.label}</div>
+              <div style={{background:"#0a0a18",borderRadius:2,height:3,overflow:"hidden",margin:"2px 0"}}><div style={{background:DC[i],height:"100%",width:`${(m.media/Math.max(maxMedia,0.1)*100)}%`}}/></div>
+              <div style={{color:m.media===maxMedia?DC[i]:C.text,fontSize:11,fontWeight:700,fontFamily:"monospace"}}>{m.media.toFixed(2)}</div>
+            </div>))}
+          </div>);
         })()}
       </div>
     </div>
@@ -463,7 +379,7 @@ function TabAnimazione(){
 
 function TabSegnali(){
   const allDraws=useDraws();
-  const [winSize,setWinSize]=useState(Math.min(10,allDraws.length));
+  const [winSize,setWinSize]=useState(20);
   const series=useMemo(()=>buildSeries(allDraws),[allDraws]);
   const scored=useMemo(()=>scoreNumbers(allDraws,winSize),[allDraws,winSize]);
   const stats=useMemo(()=>calcStats(allDraws),[allDraws]);
@@ -475,25 +391,23 @@ function TabSegnali(){
   const totalOcc=freqSorted.reduce((s,[,v])=>s+v,0);
   function getRitardo(num){for(let i=allDraws.length-1;i>=0;i--){if(allDraws[i].nums.includes(num))return allDraws.length-1-i;}return allDraws.length;}
   const zCol=z=>Math.abs(z)>2?C.red:Math.abs(z)>1?C.orange:C.teal;
+  const winOpts=[10,20,50,100,allDraws.length];
   return(
     <div>
       <h2 style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:16,marginBottom:12}}>🔬 Segnali & Frequenze</h2>
-      <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
-        <span style={{color:C.dim,fontSize:11}}>Finestra:</span>
-        {[3,5,8,10,allDraws.length].map(w=>(
-          <button key={w} onClick={()=>setWinSize(Math.min(w,allDraws.length))} style={{
-            background:winSize===Math.min(w,allDraws.length)?`${ACCENT}22`:"transparent",
-            color:winSize===Math.min(w,allDraws.length)?ACCENT:C.dim,
-            border:`1px solid ${winSize===Math.min(w,allDraws.length)?ACCENT:C.border}`,
-            borderRadius:14,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",
-          }}>{w===allDraws.length?"Tutte":w}</button>
-        ))}
-      </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8,marginBottom:14}}>
         <KpiCard label="Estrazioni" value={allDraws.length}/>
-        <KpiCard label="μ reale" value={muReale.toFixed(1)} color={C.orange}/>
+        <KpiCard label="μ reale" value={muReale.toFixed(1)} color={C.orange} sub={`Δ ${(muReale-MU_TEO).toFixed(1)}`}/>
         <KpiCard label="σ reale" value={sigmaReale.toFixed(1)} color={C.teal}/>
         <KpiCard label="μ teorica" value={MU_TEO} color={ACCENT}/>
+      </div>
+      <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+        <span style={{color:C.dim,fontSize:11}}>Finestra analisi:</span>
+        {winOpts.map(w=>(
+          <button key={w} onClick={()=>setWinSize(Math.min(w,allDraws.length))} style={{background:winSize===Math.min(w,allDraws.length)?`${ACCENT}22`:"transparent",color:winSize===Math.min(w,allDraws.length)?ACCENT:C.dim,border:`1px solid ${winSize===Math.min(w,allDraws.length)?ACCENT:C.border}`,borderRadius:14,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
+            {w===allDraws.length?"Tutte":w}
+          </button>
+        ))}
       </div>
       {[
         {l:"SEGNALE SOMME",z:zOf(muReale,MU_TEO,SIGMA_TEO/Math.sqrt(allDraws.length)),d:`μ reale: ${muReale.toFixed(1)} · teo: ${MU_TEO} · σ: ${sigmaReale.toFixed(1)}`},
@@ -502,121 +416,70 @@ function TabSegnali(){
       ].map(item=>{
         const col=zCol(item.z);
         const label=Math.abs(item.z)>2?"⚠️ Anomalia forte":Math.abs(item.z)>1?"⚡ Anomalia lieve":"✓ Nella norma";
-        return(
-          <div key={item.l} style={{background:C.card,border:`1px solid ${col}33`,borderLeft:`3px solid ${col}`,borderRadius:8,padding:"10px 14px",marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:5,flexWrap:"wrap",gap:4}}>
-              <span style={{color:C.text,fontSize:11}}>{item.l}</span>
-              <span style={{color:col,fontSize:11,fontWeight:700}}>{label} (z={item.z.toFixed(2)})</span>
-            </div>
-            <div style={{background:"#0a0a18",borderRadius:4,height:6,overflow:"hidden",marginBottom:4}}>
-              <div style={{background:`linear-gradient(90deg,${C.teal},${col})`,width:`${clamp(Math.abs(item.z)/3*100,0,100)}%`,height:"100%"}}/>
-            </div>
-            <div style={{color:C.dim,fontSize:10}}>{item.d}</div>
+        return(<div key={item.l} style={{background:C.card,border:`1px solid ${col}33`,borderLeft:`3px solid ${col}`,borderRadius:8,padding:"10px 14px",marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:5,flexWrap:"wrap",gap:4}}>
+            <span style={{color:C.text,fontSize:11}}>{item.l}</span>
+            <span style={{color:col,fontSize:11,fontWeight:700}}>{label} (z={item.z.toFixed(2)})</span>
           </div>
-        );
+          <div style={{background:"#0a0a18",borderRadius:4,height:6,overflow:"hidden",marginBottom:4}}>
+            <div style={{background:`linear-gradient(90deg,${C.teal},${col})`,width:`${clamp(Math.abs(item.z)/3*100,0,100)}%`,height:"100%"}}/>
+          </div>
+          <div style={{color:C.dim,fontSize:10}}>{item.d}</div>
+        </div>);
       })}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:14}}>
         <div style={{background:C.card,border:`1px solid ${C.orange}33`,borderRadius:10,padding:12}}>
-          <div style={{color:C.orange,fontWeight:700,fontSize:12,marginBottom:8}}>🔥 Più frequenti (win {winSize})</div>
-          {hotNums.map(h=>(
-            <div key={h.num} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
-              <Ball num={h.num} color={C.orange} size={28}/>
-              <div style={{flex:1,background:"#0a0a18",borderRadius:3,height:7,overflow:"hidden"}}>
-                <div style={{background:C.orange,height:"100%",width:`${Math.min(h.f/Math.max(...hotNums.map(x=>x.f))*100,100)}%`}}/>
-              </div>
-              <span style={{color:C.orange,fontSize:10,fontFamily:"monospace",minWidth:56}}>{h.f}x z=+{h.z.toFixed(1)}</span>
-            </div>
-          ))}
+          <div style={{color:C.orange,fontWeight:700,fontSize:12,marginBottom:8}}>🔥 Top caldi (win {winSize})</div>
+          {hotNums.map(h=>(<div key={h.num} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+            <Ball num={h.num} color={C.orange} size={28}/>
+            <div style={{flex:1,background:"#0a0a18",borderRadius:3,height:7,overflow:"hidden"}}><div style={{background:C.orange,height:"100%",width:`${Math.min(h.f/Math.max(...hotNums.map(x=>x.f))*100,100)}%`}}/></div>
+            <span style={{color:C.orange,fontSize:10,fontFamily:"monospace",minWidth:56}}>{h.f}x z=+{h.z.toFixed(1)}</span>
+          </div>))}
         </div>
         <div style={{background:C.card,border:`1px solid ${C.teal}33`,borderRadius:10,padding:12}}>
-          <div style={{color:C.teal,fontWeight:700,fontSize:12,marginBottom:8}}>❄️ Più freddi (win {winSize})</div>
-          {coldNums.map(h=>(
-            <div key={h.num} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
-              <Ball num={h.num} color={C.teal} size={28}/>
-              <div style={{flex:1,background:"#0a0a18",borderRadius:3,height:7,overflow:"hidden"}}>
-                <div style={{background:C.teal,height:"100%",width:`${clamp(Math.abs(h.z)/3*100,0,100)}%`}}/>
-              </div>
-              <span style={{color:C.teal,fontSize:10,fontFamily:"monospace",minWidth:56}}>{h.f}x z={h.z.toFixed(1)}</span>
-            </div>
-          ))}
+          <div style={{color:C.teal,fontWeight:700,fontSize:12,marginBottom:8}}>❄️ Top freddi (win {winSize})</div>
+          {coldNums.map(h=>(<div key={h.num} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+            <Ball num={h.num} color={C.teal} size={28}/>
+            <div style={{flex:1,background:"#0a0a18",borderRadius:3,height:7,overflow:"hidden"}}><div style={{background:C.teal,height:"100%",width:`${clamp(Math.abs(h.z)/3*100,0,100)}%`}}/></div>
+            <span style={{color:C.teal,fontSize:10,fontFamily:"monospace",minWidth:56}}>{h.f}x z={h.z.toFixed(1)}</span>
+          </div>))}
         </div>
       </div>
       <div style={{marginTop:14,background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:14}}>
-        <div style={{color:ACCENT,fontWeight:700,fontSize:12,marginBottom:8}}>🗺️ Mappa frequenze 1–90</div>
+        <div style={{color:ACCENT,fontWeight:700,fontSize:12,marginBottom:8}}>🗺️ Mappa frequenze 1–90 ({allDraws.length} estrazioni)</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(10,1fr)",gap:3,marginBottom:12}}>
           {scored.map(s=>{
             const maxF=Math.max(...scored.map(x=>x.f))||1;
             const intensity=clamp(s.f/maxF,0,1);
             const col=s.isCold?C.teal:s.isHot?C.orange:ACCENT;
             const rit=getRitardo(s.num);
-            return(
-              <div key={s.num} title={`${s.num}: ${s.f}x rit.${rit}`} style={{
-                aspectRatio:"1",background:`${col}${Math.round(intensity*180+40).toString(16).padStart(2,"00")}`,
-                border:`1px solid ${col}22`,borderRadius:3,
-                display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:9,color:"#fff",fontFamily:"monospace",fontWeight:700,
-              }}>{s.num}</div>
-            );
+            return(<div key={s.num} title={`${s.num}: ${s.f}x rit.${rit}`} style={{aspectRatio:"1",background:`${col}${Math.round(intensity*180+40).toString(16).padStart(2,"00")}`,border:`1px solid ${col}22`,borderRadius:3,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#fff",fontFamily:"monospace",fontWeight:700}}>{s.num}</div>);
           })}
         </div>
-        <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Top 10 frequenti:</div>
+        <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Top 10 frequenti (su {allDraws.length} estrazioni):</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:12}}>
           {freqSorted.slice(0,10).map(([n,f])=>{
             const pct=(f/totalOcc*100).toFixed(1);
             const rit=getRitardo(+n);
-            const pctRit=(rit/allDraws.length*100).toFixed(0);
-            return(
-              <div key={n} style={{background:`${ACCENT}11`,border:`1px solid ${ACCENT}33`,borderRadius:8,padding:"5px 8px",textAlign:"center"}}>
-                <Ball num={+n} color={ACCENT} size={26}/>
-                <div style={{color:ACCENT,fontSize:10,fontWeight:700}}>{f}x</div>
-                <div style={{color:C.teal,fontSize:9}}>{pct}%</div>
-                <div style={{color:C.dim,fontSize:9}}>rit.{rit}/{pctRit}%</div>
-              </div>
-            );
+            return(<div key={n} style={{background:`${ACCENT}11`,border:`1px solid ${ACCENT}33`,borderRadius:8,padding:"5px 8px",textAlign:"center"}}>
+              <Ball num={+n} color={ACCENT} size={26}/>
+              <div style={{color:ACCENT,fontSize:10,fontWeight:700}}>{f}x</div>
+              <div style={{color:C.teal,fontSize:9}}>{pct}%</div>
+              <div style={{color:C.dim,fontSize:9}}>rit.{rit}</div>
+            </div>);
           })}
         </div>
         <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Top 10 ritardatari:</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
+        <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
           {[...scored].sort((a,b)=>getRitardo(b.num)-getRitardo(a.num)).slice(0,10).map(s=>{
             const rit=getRitardo(s.num);
-            const pctRit=(rit/allDraws.length*100).toFixed(0);
             const f=stats.freq[s.num]||0;
-            const pctF=(f/totalOcc*100).toFixed(1);
-            return(
-              <div key={s.num} style={{background:`${C.teal}11`,border:`1px solid ${C.teal}33`,borderRadius:8,padding:"5px 8px",textAlign:"center"}}>
-                <Ball num={s.num} color={C.teal} size={26}/>
-                <div style={{color:C.teal,fontSize:10,fontWeight:700}}>{f}x</div>
-                <div style={{color:C.teal,fontSize:9}}>{pctF}%</div>
-                <div style={{color:C.orange,fontSize:9}}>rit.{rit}/{pctRit}%</div>
-              </div>
-            );
+            return(<div key={s.num} style={{background:`${C.teal}11`,border:`1px solid ${C.teal}33`,borderRadius:8,padding:"5px 8px",textAlign:"center"}}>
+              <Ball num={s.num} color={C.teal} size={26}/>
+              <div style={{color:C.teal,fontSize:10,fontWeight:700}}>{f}x</div>
+              <div style={{color:C.orange,fontSize:9}}>rit.{rit}</div>
+            </div>);
           })}
-        </div>
-        <div style={{borderTop:`1px solid ${C.border}`,paddingTop:12}}>
-          <div style={{color:"#FFD700",fontWeight:700,fontSize:12,marginBottom:8}}>⭐ Frequenze SuperStar (1–90)</div>
-          {(()=>{
-            const sf={};
-            allDraws.forEach(d=>{if(typeof d.superstar==="number")sf[d.superstar]=(sf[d.superstar]||0)+1;});
-            const tot=Object.values(sf).reduce((s,v)=>s+v,0);
-            const top12=Object.entries(sf).sort((a,b)=>b[1]-a[1]).slice(0,12);
-            return(
-              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                {top12.map(([n,f])=>{
-                  const pct=tot?((f/tot)*100).toFixed(1):"0.0";
-                  let rit=allDraws.length;
-                  for(let i=allDraws.length-1;i>=0;i--){if(allDraws[i].superstar===+n){rit=allDraws.length-1-i;break;}}
-                  return(
-                    <div key={n} style={{background:"#1a1a20",border:"1px solid #FFD70033",borderRadius:8,padding:"5px 8px",textAlign:"center"}}>
-                      <Ball num={+n} color="#FFD700" size={26}/>
-                      <div style={{color:"#FFD700",fontSize:10,fontWeight:700}}>{f}x</div>
-                      <div style={{color:C.teal,fontSize:9}}>{pct}%</div>
-                      <div style={{color:C.dim,fontSize:9}}>rit.{rit}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
         </div>
       </div>
     </div>
@@ -633,13 +496,13 @@ function TabBanda(){
   const muT=useAdaptive?muReale:MU_TEO,sigT=useAdaptive?sigmaReale:SIGMA_TEO;
   const loB=Math.round(muT-kBand*sigT),hiB=Math.round(muT+kBand*sigT);
   const inBand=series.filter(d=>d.sum>=loB&&d.sum<=hiB).length;
-  const chartData=series.map(d=>({date:d.date,sum:d.sum,mu:d.mu,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale)}));
+  const chartData=series.slice(-200).map(d=>({date:d.date?.substring(0,5)||"",sum:d.sum,mu:d.mu,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale)}));
   const bands=[0.5,1.0,1.5,2.0,2.5].map(k=>({k,loA:Math.round(muReale-k*sigmaReale),hiA:Math.round(muReale+k*sigmaReale),inA:sums.filter(s=>s>=muReale-k*sigmaReale&&s<=muReale+k*sigmaReale).length}));
   return(
     <div>
       <h2 style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:16,marginBottom:12}}>📐 Banda Adattiva</h2>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,marginBottom:14}}>
-        <KpiCard label="μ reale" value={muReale.toFixed(1)} color={C.orange}/>
+        <KpiCard label="μ reale" value={muReale.toFixed(1)} color={C.orange} sub={`su ${allDraws.length} est.`}/>
         <KpiCard label="σ reale" value={sigmaReale.toFixed(1)} color={C.teal}/>
         <KpiCard label="Min Σ" value={Math.min(...sums)} color={C.teal}/>
         <KpiCard label="Max Σ" value={Math.max(...sums)} color={C.red}/>
@@ -652,9 +515,7 @@ function TabBanda(){
             <div style={{fontWeight:700}}>±{k}σ</div><div style={{fontSize:9,color:kBand===k?C.teal:C.dim}}>{pct}%</div>
           </button>);
         })}
-        {[{v:true,l:"Adattivo"},{v:false,l:"Teorico"}].map(x=>(
-          <button key={String(x.v)} onClick={()=>setAdaptive(x.v)} style={{background:useAdaptive===x.v?`${C.teal}22`:"transparent",color:useAdaptive===x.v?C.teal:C.dim,border:`1px solid ${useAdaptive===x.v?C.teal:C.border}`,borderRadius:8,padding:"5px 12px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{x.l}</button>
-        ))}
+        {[{v:true,l:"Adattivo"},{v:false,l:"Teorico"}].map(x=>(<button key={String(x.v)} onClick={()=>setAdaptive(x.v)} style={{background:useAdaptive===x.v?`${C.teal}22`:"transparent",color:useAdaptive===x.v?C.teal:C.dim,border:`1px solid ${useAdaptive===x.v?C.teal:C.border}`,borderRadius:8,padding:"5px 12px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{x.l}</button>))}
         <div style={{display:"flex",gap:6,alignItems:"center",marginLeft:"auto"}}>
           <span style={{color:C.teal,fontFamily:"monospace",fontWeight:700}}>{loB}</span>
           <span style={{color:C.dim}}>──</span>
@@ -667,17 +528,16 @@ function TabBanda(){
         <ComposedChart data={chartData} margin={{top:8,right:12,bottom:0,left:0}}>
           <defs><linearGradient id="gBandaSE" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={ACCENT} stopOpacity={0.28}/><stop offset="100%" stopColor={ACCENT} stopOpacity={0.08}/></linearGradient></defs>
           <CartesianGrid strokeDasharray="2 4" stroke="#0e0e1c"/>
-          <XAxis dataKey="date" tick={{fill:C.dim,fontSize:9}} interval={Math.ceil(series.length/6)}/>
+          <XAxis dataKey="date" tick={{fill:C.dim,fontSize:9}} interval={Math.ceil(chartData.length/8)}/>
           <YAxis domain={[50,520]} tick={{fill:C.dim,fontSize:9}}/>
           <Tooltip content={<TT/>}/>
           <Area type="monotone" dataKey="hiA" stroke={`${ACCENT}cc`} strokeWidth={2} strokeDasharray="5 3" fill="url(#gBandaSE)" activeDot={false}/>
           <Area type="monotone" dataKey="loA" stroke={`${ACCENT}cc`} strokeWidth={2} strokeDasharray="5 3" fill="#07070F" activeDot={false}/>
-          <ReferenceLine y={MU_TEO} stroke={`${ACCENT}99`} strokeDasharray="6 3" strokeWidth={1.5} label={{value:"277.5 teo.",fill:`${ACCENT}cc`,fontSize:9,position:"insideTopRight"}}/>
-          <ReferenceLine y={Math.round(muT)} stroke={C.teal} strokeDasharray="4 2" strokeWidth={1.5}/>
+          <ReferenceLine y={MU_TEO} stroke={`${ACCENT}99`} strokeDasharray="6 3" strokeWidth={1.5}/>
           <Line type="monotone" dataKey="mu" stroke={C.teal} strokeWidth={2} dot={false} name="μ"/>
-          <Line type="monotone" dataKey="sum" stroke={ACCENT} strokeWidth={2.5}
-            dot={(props)=>{const{cx,cy,payload}=props;const inB=payload.sum>=loB&&payload.sum<=hiB;return <circle key={cx} cx={cx} cy={cy} r={4} fill={inB?"#4A9E5C":"#C94040"} stroke="none"/>;}}
-            activeDot={{r:6}} name="Somma"/>
+          <Line type="monotone" dataKey="sum" stroke={ACCENT} strokeWidth={2}
+            dot={(props)=>{const{cx,cy,payload}=props;const inB=payload.sum>=loB&&payload.sum<=hiB;return <circle key={cx} cx={cx} cy={cy} r={3} fill={inB?"#4A9E5C":"#C94040"} stroke="none"/>;}}
+            name="Somma"/>
         </ComposedChart>
       </ResponsiveContainer>
       <div style={{display:"flex",flexDirection:"column",gap:5,marginTop:12}}>
@@ -705,7 +565,6 @@ function SSAffinitaPanel({allDraws,ticketSum,sigmaRef,currentSS,selSS,setSelSS})
             <Ball num={s.num} color={isSel?"#FFD700":"#888"} size={28} glow={isSel}/>
             <div style={{background:"#0a0a18",borderRadius:3,height:4,overflow:"hidden",margin:"4px 0"}}><div style={{background:isSel?"#FFD700":barCol,height:"100%",width:`${s.pct}%`}}/></div>
             <div style={{color:isSel?"#FFD700":barCol,fontSize:10,fontWeight:700}}>{s.pct}%</div>
-            <div style={{color:"#666",fontSize:8}}>{s.freq}x·r{s.ritardo}</div>
           </div>);
         })}
       </div>
@@ -713,7 +572,6 @@ function SSAffinitaPanel({allDraws,ticketSum,sigmaRef,currentSS,selSS,setSelSS})
         <span style={{color:C.dim,fontSize:11}}>Selezionato:</span>
         <Ball num={selected||"?"} color="#FFD700" size={36} glow/>
         <span style={{color:"#FFD700",fontWeight:700,fontSize:16,fontFamily:"monospace"}}>{selected||"—"}</span>
-        {selected&&<span style={{color:"#FFD700",fontSize:11}}>Aff: <strong>{suggestions.find(x=>x.num===selected)?.pct||0}%</strong></span>}
       </div>
     </div>
   );
@@ -729,7 +587,7 @@ function TabGeneratore(){
   const [sigmaMode,setSigmaMode]=useState("reale");
   const [kBand,setKBand]=useState(1.5);
   const [strategy,setStrategy]=useState("balanced");
-  const [winSize,setWinSize]=useState(Math.min(10,allDraws.length));
+  const [winSize,setWinSize]=useState(Math.min(20,allDraws.length));
   const [mode,setMode]=useState("auto");
   const [ticket,setTicket]=useState(null);
   const [superstar,setSuperstar]=useState(null);
@@ -752,11 +610,9 @@ function TabGeneratore(){
   const top6freq=freqEntries.slice(0,6).map(([n])=>+n);
   const top6delay=freqEntries.slice(-6).map(([n])=>+n);
   function getRitardo(num){for(let i=allDraws.length-1;i>=0;i--){if(allDraws[i].nums.includes(num))return allDraws.length-1-i;}return allDraws.length;}
-  const lastDraw=allDraws[allDraws.length-1]||DRAWS[DRAWS.length-1];
-  const lastEvens=lastDraw.nums.filter(n=>n%2===0).length;
+  const lastDraw=allDraws[allDraws.length-1];
+  const lastEvens=lastDraw?.nums.filter(n=>n%2===0).length||3;
   const lastOdds=PICK-lastEvens;
-  const lastFreqInDraw=top6freq.filter(n=>lastDraw.nums.includes(n));
-  const lastDelayInDraw=top6delay.filter(n=>lastDraw.nums.includes(n));
   const genera=()=>{const seed=Date.now();setTicket(generateTicket(scored,strategy,loB,hiB,muCustom,seed));setSuperstar(generateSuperStar(seed));};
   const generaTattico=()=>{
     setLoading(true);setResults([]);setScanned(0);
@@ -786,9 +642,8 @@ function TabGeneratore(){
   return(
     <div>
       <h2 style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:16,marginBottom:12}}>🎯 Generatore Sestine + SuperStar</h2>
-      {/* SUGGERIMENTI */}
       <div style={{background:`${ACCENT}08`,border:`1px solid ${ACCENT}33`,borderRadius:12,padding:12,marginBottom:14}}>
-        <div style={{color:ACCENT,fontWeight:700,fontSize:12,marginBottom:8}}>📊 Suggerimenti — {allDraws.length} estrazioni</div>
+        <div style={{color:ACCENT,fontWeight:700,fontSize:12,marginBottom:8}}>📊 Suggerimenti — {allDraws.length} estrazioni storiche</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8}}>
           <div style={{background:"#080816",borderRadius:8,padding:10,border:`1px solid ${ACCENT}22`}}>
             <div style={{color:ACCENT,fontSize:10,fontWeight:700,marginBottom:5}}>⚡ Range Somma</div>
@@ -802,67 +657,36 @@ function TabGeneratore(){
             <div style={{color:C.dim,fontSize:9}}>μ={muReale.toFixed(1)} · σ={sigmaReale.toFixed(1)}</div>
           </div>
           <div style={{background:"#080816",borderRadius:8,padding:10,border:`1px solid ${ACCENT}22`}}>
-            <div style={{color:ACCENT,fontSize:10,fontWeight:700,marginBottom:4}}>☯️ Pari/Dispari</div>
-            <div style={{background:`${C.purple}15`,border:`1px solid ${C.purple}33`,borderRadius:6,padding:"5px 8px",marginBottom:6}}>
-              <div style={{color:C.purple,fontSize:9,fontWeight:700,marginBottom:3}}>Ultima #{lastDraw.n}·{lastDraw.date}:</div>
+            <div style={{color:C.orange,fontSize:10,fontWeight:700,marginBottom:4}}>🔥 Freq. storiche (top 6)</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:4}}>
+              {top6freq.map(n=>{const f=stats.freq[n]||0,pct=(f/totalOcc*100).toFixed(1);return(<div key={n} style={{textAlign:"center"}}><Ball num={n} color={C.orange} size={22}/><div style={{color:C.orange,fontSize:7}}>{pct}%</div></div>);})}
+            </div>
+            <button onClick={()=>setFreqInput(top6freq.slice(0,4).join(","))} style={{width:"100%",background:`${C.orange}11`,border:`1px solid ${C.orange}33`,borderRadius:5,padding:"3px",cursor:"pointer",fontFamily:"inherit",color:C.orange,fontSize:10}}>Usa top 4</button>
+          </div>
+          <div style={{background:"#080816",borderRadius:8,padding:10,border:`1px solid ${ACCENT}22`}}>
+            <div style={{color:C.teal,fontSize:10,fontWeight:700,marginBottom:4}}>❄️ Ritard. storici (top 6)</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:4}}>
+              {top6delay.map(n=>{const rit=getRitardo(n),pct=(rit/allDraws.length*100).toFixed(0);return(<div key={n} style={{textAlign:"center"}}><Ball num={n} color={C.teal} size={22}/><div style={{color:C.teal,fontSize:7}}>{pct}%</div></div>);})}
+            </div>
+            <button onClick={()=>setDelayInput(top6delay.slice(0,4).join(","))} style={{width:"100%",background:`${C.teal}11`,border:`1px solid ${C.teal}33`,borderRadius:5,padding:"3px",cursor:"pointer",fontFamily:"inherit",color:C.teal,fontSize:10}}>Usa top 4</button>
+          </div>
+          <div style={{background:"#080816",borderRadius:8,padding:10,border:`1px solid ${ACCENT}22`}}>
+            <div style={{color:ACCENT,fontSize:10,fontWeight:700,marginBottom:4}}>☯️ Pari/Dispari (ultima)</div>
+            <div style={{background:`${C.purple}15`,border:`1px solid ${C.purple}33`,borderRadius:6,padding:"5px 8px"}}>
+              <div style={{color:C.purple,fontSize:9,fontWeight:700,marginBottom:3}}>Ultima estrazione:</div>
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
                 <span style={{color:"#fff",fontFamily:"monospace",fontSize:12,fontWeight:700}}>{lastEvens}P–{lastOdds}D</span>
                 <button onClick={()=>setRatio(`${lastEvens}-${lastOdds}`)} style={{background:ratio===`${lastEvens}-${lastOdds}`?`${C.purple}33`:`${C.purple}11`,color:C.purple,border:`1px solid ${C.purple}44`,borderRadius:5,padding:"2px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{ratio===`${lastEvens}-${lastOdds}`?"✓ Sel.":"Usa"}</button>
               </div>
             </div>
-            <div style={{color:C.dim,fontSize:9,marginBottom:4}}>% storiche:</div>
-            {stats.parityDist.filter(p=>+p.pct>3).sort((a,b)=>+b.pct-+a.pct).slice(0,4).map(p=>{
-              const isLast=p.k===lastEvens;
-              return(<button key={p.k} onClick={()=>setRatio(`${p.k}-${PICK-p.k}`)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",background:ratio===`${p.k}-${PICK-p.k}`?`${ACCENT}22`:`${C.teal}11`,border:`1px solid ${ratio===`${p.k}-${PICK-p.k}`?ACCENT:isLast?C.purple:C.teal}33`,borderRadius:5,padding:"3px 6px",cursor:"pointer",fontFamily:"inherit",marginBottom:3}}>
-                <span style={{color:ratio===`${p.k}-${PICK-p.k}`?ACCENT:C.teal,fontSize:10,fontWeight:700}}>{p.k}P–{PICK-p.k}D{isLast&&<span style={{color:C.purple,fontSize:8}}> ← ult.</span>}</span>
-                <div style={{display:"flex",gap:3,alignItems:"center"}}>
-                  <div style={{width:28,background:"#0a0a18",borderRadius:3,height:5,overflow:"hidden"}}><div style={{background:ratio===`${p.k}-${PICK-p.k}`?ACCENT:C.teal,height:"100%",width:p.pct+"%"}}/></div>
-                  <span style={{color:C.dim,fontSize:10}}>{p.pct}%</span>
-                </div>
-              </button>);
-            })}
-          </div>
-          <div style={{background:"#080816",borderRadius:8,padding:10,border:`1px solid ${ACCENT}22`}}>
-            <div style={{color:C.orange,fontSize:10,fontWeight:700,marginBottom:4}}>🔥 Freq. (top 6)</div>
-            {lastFreqInDraw.length>0&&(<div style={{background:`${C.orange}15`,border:`1px solid ${C.orange}33`,borderRadius:6,padding:"5px 8px",marginBottom:6}}>
-              <div style={{color:C.orange,fontSize:9,fontWeight:700,marginBottom:3}}>Nell'ultima #{lastDraw.n}:</div>
-              <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:4}}>{lastFreqInDraw.map(n=>(<div key={n} style={{textAlign:"center"}}><Ball num={n} color={C.orange} size={22} glow/><div style={{color:C.orange,fontSize:7}}>uscito</div></div>))}</div>
-              <div style={{display:"flex",gap:4}}>
-                <button onClick={()=>{const cur=freqInput?freqInput.split(/[\s,]+/).map(Number).filter(Boolean):[];setFreqInput([...cur,...lastFreqInDraw.filter(n=>!cur.includes(n))].join(","));}} style={{flex:1,background:`${C.orange}22`,border:`1px solid ${C.orange}44`,borderRadius:5,padding:"3px",cursor:"pointer",fontFamily:"inherit",color:C.orange,fontSize:9,fontWeight:700}}>➕</button>
-                <button onClick={()=>{const cur=freqInput?freqInput.split(/[\s,]+/).map(Number).filter(Boolean):[];setFreqInput(cur.filter(n=>!lastFreqInDraw.includes(n)).join(","));}} style={{flex:1,background:`${C.red}11`,border:`1px solid ${C.red}33`,borderRadius:5,padding:"3px",cursor:"pointer",fontFamily:"inherit",color:C.red,fontSize:9,fontWeight:700}}>➖</button>
-              </div>
-            </div>)}
-            <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:4}}>
-              {top6freq.map(n=>{const f=stats.freq[n]||0,pct=(f/totalOcc*100).toFixed(1);const inLast=lastDraw.nums.includes(n);return(<div key={n} style={{textAlign:"center",position:"relative"}}><Ball num={n} color={inLast?C.purple:C.orange} size={22}/>{inLast&&<div style={{position:"absolute",top:-3,right:-3,width:7,height:7,borderRadius:"50%",background:C.purple,border:"1px solid #0a0a18"}}/>}<div style={{color:inLast?C.purple:C.orange,fontSize:7}}>{pct}%</div></div>);})}
-            </div>
-            <div style={{color:C.dim,fontSize:8,marginBottom:4}}><span style={{color:C.purple}}>●</span> = ultima</div>
-            <button onClick={()=>setFreqInput(top6freq.slice(0,4).join(","))} style={{width:"100%",background:`${C.orange}11`,border:`1px solid ${C.orange}33`,borderRadius:5,padding:"3px",cursor:"pointer",fontFamily:"inherit",color:C.orange,fontSize:10}}>Usa top 4</button>
-          </div>
-          <div style={{background:"#080816",borderRadius:8,padding:10,border:`1px solid ${ACCENT}22`}}>
-            <div style={{color:C.teal,fontSize:10,fontWeight:700,marginBottom:4}}>❄️ Ritard. (top 6)</div>
-            {lastDelayInDraw.length>0&&(<div style={{background:`${C.teal}15`,border:`1px solid ${C.teal}33`,borderRadius:6,padding:"5px 8px",marginBottom:6}}>
-              <div style={{color:C.teal,fontSize:9,fontWeight:700,marginBottom:3}}>Nell'ultima #{lastDraw.n}:</div>
-              <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:4}}>{lastDelayInDraw.map(n=>(<div key={n} style={{textAlign:"center"}}><Ball num={n} color={C.teal} size={22} glow/><div style={{color:C.teal,fontSize:7}}>uscito</div></div>))}</div>
-              <div style={{display:"flex",gap:4}}>
-                <button onClick={()=>{const cur=delayInput?delayInput.split(/[\s,]+/).map(Number).filter(Boolean):[];setDelayInput([...cur,...lastDelayInDraw.filter(n=>!cur.includes(n))].join(","));}} style={{flex:1,background:`${C.teal}22`,border:`1px solid ${C.teal}44`,borderRadius:5,padding:"3px",cursor:"pointer",fontFamily:"inherit",color:C.teal,fontSize:9,fontWeight:700}}>➕</button>
-                <button onClick={()=>{const cur=delayInput?delayInput.split(/[\s,]+/).map(Number).filter(Boolean):[];setDelayInput(cur.filter(n=>!lastDelayInDraw.includes(n)).join(","));}} style={{flex:1,background:`${C.red}11`,border:`1px solid ${C.red}33`,borderRadius:5,padding:"3px",cursor:"pointer",fontFamily:"inherit",color:C.red,fontSize:9,fontWeight:700}}>➖</button>
-              </div>
-            </div>)}
-            <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:4}}>
-              {top6delay.map(n=>{const rit=getRitardo(n),pct=(rit/allDraws.length*100).toFixed(0);const inLast=lastDraw.nums.includes(n);return(<div key={n} style={{textAlign:"center",position:"relative"}}><Ball num={n} color={inLast?C.purple:C.teal} size={22}/>{inLast&&<div style={{position:"absolute",top:-3,right:-3,width:7,height:7,borderRadius:"50%",background:C.purple,border:"1px solid #0a0a18"}}/>}<div style={{color:inLast?C.purple:C.teal,fontSize:7}}>{pct}%</div></div>);})}
-            </div>
-            <div style={{color:C.dim,fontSize:8,marginBottom:4}}><span style={{color:C.purple}}>●</span> = ultima</div>
-            <button onClick={()=>setDelayInput(top6delay.slice(0,4).join(","))} style={{width:"100%",background:`${C.teal}11`,border:`1px solid ${C.teal}33`,borderRadius:5,padding:"3px",cursor:"pointer",fontFamily:"inherit",color:C.teal,fontSize:10}}>Usa top 4</button>
           </div>
         </div>
       </div>
-      {/* MODALITA */}
       <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
         {[{id:"auto",l:"🤖 Automatica"},{id:"manual",l:"✍️ Manuale"},{id:"tattico",l:"⚡ Tattico"}].map(m=>(
           <button key={m.id} onClick={()=>setMode(m.id)} style={{background:mode===m.id?`${ACCENT}22`:"transparent",color:mode===m.id?ACCENT:C.dim,border:`1px solid ${mode===m.id?ACCENT:C.border}`,borderRadius:18,padding:"6px 14px",fontSize:11,fontWeight:mode===m.id?700:400,cursor:"pointer",fontFamily:"inherit"}}>{m.l}</button>
         ))}
       </div>
-      {/* AUTO */}
       {mode==="auto"&&(<div>
         <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10,alignItems:"center"}}>
           {[{id:"cold",l:"❄️",c:C.teal},{id:"unpop",l:"👥",c:C.purple},{id:"balanced",l:"⚖️",c:ACCENT}].map(s=>(<button key={s.id} onClick={()=>setStrategy(s.id)} style={{background:strategy===s.id?`${s.c}22`:"transparent",color:strategy===s.id?s.c:C.dim,border:`1px solid ${strategy===s.id?s.c:C.border}`,borderRadius:14,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{s.l}</button>))}
@@ -871,32 +695,23 @@ function TabGeneratore(){
             <input type="range" min={100} max={450} value={muCustom} onChange={e=>setMuCustom(+e.target.value)} style={{width:70,accentColor:ACCENT}}/>
             <input type="number" min={100} max={450} value={muCustom} onChange={e=>setMuCustom(Math.max(100,Math.min(450,+e.target.value)))} style={{width:60,background:"#0a0a1c",color:ACCENT,border:`1px solid ${ACCENT}55`,borderRadius:6,padding:"3px 6px",fontSize:12,fontFamily:"monospace",outline:"none"}}/>
           </div>
-          {[{id:"reale",l:`σ=${sigmaReale.toFixed(0)}`},{id:"teorica",l:"σ=62"}].map(s=>(<button key={s.id} onClick={()=>setSigmaMode(s.id)} style={{background:sigmaMode===s.id?`${C.teal}22`:"transparent",color:sigmaMode===s.id?C.teal:C.dim,border:`1px solid ${sigmaMode===s.id?C.teal:C.border}`,borderRadius:8,padding:"4px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{s.l}</button>))}
           <div style={{width:"100%",marginTop:6}}>
-            <div style={{color:C.dim,fontSize:10,marginBottom:5,textTransform:"uppercase",letterSpacing:1}}>⚙️ BANDA Σ — LA SESTINA AVRÀ Σ NEL RANGE:</div>
+            <div style={{color:C.dim,fontSize:10,marginBottom:5}}>⚙️ BANDA σ:</div>
             <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-              {[0.5,1.0,1.5,2.0,2.5].map(k=>{const se=sigmaMode==="reale"?sigmaReale:SIGMA_TEO;const lo=Math.round(muCustom-k*se);const hi=Math.round(muCustom+k*se);const inB=series.filter(d=>d.sum>=lo&&d.sum<=hi).length;const pct=(inB/series.length*100).toFixed(0);const isActive=kBand===k;return(<button key={k} onClick={()=>setKBand(k)} style={{flex:1,minWidth:70,background:isActive?`linear-gradient(135deg,${ACCENT}33,${ACCENT}11)`:"#080816",color:isActive?ACCENT:C.dim,border:`2px solid ${isActive?ACCENT:C.border}`,borderRadius:10,padding:"8px 4px",cursor:"pointer",fontFamily:"inherit",textAlign:"center",boxShadow:isActive?`0 0 12px ${ACCENT}33`:"none"}}>
-                <div style={{fontSize:13,fontWeight:900,fontFamily:"monospace"}}>±{k}σ</div>
-                <div style={{fontSize:10,fontFamily:"monospace",color:isActive?C.teal:C.dim,marginTop:2}}>{lo}–{hi}</div>
-                <div style={{fontSize:9,color:isActive?C.green:C.dim,marginTop:1}}>{pct}% reali</div>
-              </button>);})}
+              {[0.5,1.0,1.5,2.0,2.5].map(k=>{const se=sigmaMode==="reale"?sigmaReale:SIGMA_TEO;const lo=Math.round(muCustom-k*se);const hi=Math.round(muCustom+k*se);const inB=series.filter(d=>d.sum>=lo&&d.sum<=hi).length;const pct=(inB/series.length*100).toFixed(0);const isActive=kBand===k;return(
+                <button key={k} onClick={()=>setKBand(k)} style={{flex:1,minWidth:70,background:isActive?`linear-gradient(135deg,${ACCENT}33,${ACCENT}11)`:"#080816",color:isActive?ACCENT:C.dim,border:`2px solid ${isActive?ACCENT:C.border}`,borderRadius:10,padding:"8px 4px",cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
+                  <div style={{fontSize:13,fontWeight:900,fontFamily:"monospace"}}>±{k}σ</div>
+                  <div style={{fontSize:10,fontFamily:"monospace",color:isActive?C.teal:C.dim,marginTop:2}}>{lo}–{hi}</div>
+                  <div style={{fontSize:9,color:isActive?C.green:C.dim,marginTop:1}}>{pct}% storiche</div>
+                </button>
+              );})}
             </div>
           </div>
-        </div>
-        <div style={{background:"#080816",borderRadius:8,padding:"7px 12px",marginBottom:10,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",fontSize:11}}>
-          <span style={{color:C.dim}}>Banda:</span>
-          <span style={{color:C.teal,fontFamily:"monospace",fontWeight:700}}>{loB}</span>
-          <span style={{color:C.dim}}>──</span>
-          <span style={{color:ACCENT,fontFamily:"monospace",fontWeight:900,fontSize:14}}>μ{muCustom}</span>
-          <span style={{color:C.dim}}>──</span>
-          <span style={{color:C.orange,fontFamily:"monospace",fontWeight:700}}>{hiB}</span>
-          <span style={{color:C.teal}}>{series.filter(d=>d.sum>=loB&&d.sum<=hiB).length}/{series.length} reali</span>
         </div>
         <button onClick={genera} style={{width:"100%",padding:"13px",background:`linear-gradient(135deg,${ACCENT},${C.teal})`,color:"#fff",border:"none",borderRadius:10,fontSize:16,fontWeight:900,cursor:"pointer",fontFamily:"Georgia,serif",marginBottom:12}}>🎲 Genera Sestina + SuperStar</button>
         {ticket&&(<div style={{background:"#080816",border:`1px solid ${ACCENT}55`,borderRadius:12,padding:14}}>
           <div style={{display:"flex",justifyContent:"center",gap:8,flexWrap:"wrap",marginBottom:12}}>
-            {ticket.nums.map(n=>{const s=scored.find(x=>x.num===n);const col=s?.isHot?C.orange:s?.isCold?C.teal:ACCENT;return <Ball key={n} num={n} color={col} size={46} glow/>;})}
-            <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:C.dim,fontSize:14}}>│</span>{superstar?<Ball num={superstar} size={46} gold glow/>:null}<span style={{color:"#FFD700",fontSize:9}}>SS</span></div>
+            {ticket.nums.map(n=>{const s=scored.find(x=>x.num===n);const col=s?.isHot?C.orange:s?.isCold?C.teal:ACCENT;return <Ball key={n} num={n} color={col} size={46} glow/>;})}<div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:C.dim,fontSize:14}}>│</span>{superstar?<Ball num={superstar} size={46} gold glow/>:null}<span style={{color:"#FFD700",fontSize:9}}>SS</span></div>
           </div>
           <SSAffinitaPanel allDraws={allDraws} ticketSum={ticket.sum} sigmaRef={sigmaEff} currentSS={superstar} selSS={selSSBonus[0]||null} setSelSS={n=>setSelSSBonus([n])}/>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10}}>
@@ -905,7 +720,6 @@ function TabGeneratore(){
           <button onClick={()=>{const t={id:Date.now(),nums:ticket.nums,superstar:selSSBonus[0]||superstar,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy,sum:ticket.sum};const prev=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");localStorage.setItem(LS_TICKETS_S,JSON.stringify([...prev,t]));alert(`✅ Sestina salvata!\n${ticket.nums.join("-")} | SS:${selSSBonus[0]||superstar||"—"}`);}} style={{width:"100%",padding:"10px",background:`${C.purple}22`,color:C.purple,border:`2px solid ${C.purple}`,borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva → 🎫 Biglietti</button>
         </div>)}
       </div>)}
-      {/* MANUALE */}
       {mode==="manual"&&(<div>
         <div style={{color:C.dim,fontSize:11,marginBottom:10}}>Inserisci {PICK} numeri (1–90).</div>
         <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginBottom:10}}>
@@ -913,36 +727,28 @@ function TabGeneratore(){
         </div>
         <div style={{textAlign:"center",color:C.dim,fontSize:10,marginBottom:10}}>Σ parziale: <strong style={{color:ACCENT,fontSize:15}}>{sm(manualInputs.map(v=>parseInt(v)||0).filter(n=>n>=1&&n<=POOL))||0}</strong></div>
       </div>)}
-      {/* TATTICO */}
       {mode==="tattico"&&(<div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:12}}>
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:10}}>
             <div style={{color:ACCENT,fontSize:11,fontWeight:700,marginBottom:6}}>⚡ Range Somma</div>
-            <div style={{marginBottom:8}}>
-              <div style={{color:C.dim,fontSize:9,marginBottom:5}}>Selezione rapida σ:</div>
-              <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-                {[0.5,1.0,1.5,2.0,2.5].map(k=>{const lo=Math.round(muReale-k*sigmaReale);const hi=Math.round(muReale+k*sigmaReale);const isA=minSum===lo&&maxSum===hi;return(<button key={k} onClick={()=>{setMinSum(lo);setMaxSum(hi);}} style={{flex:1,minWidth:50,background:isA?`linear-gradient(135deg,${ACCENT}33,${ACCENT}11)`:"#080816",color:isA?ACCENT:C.dim,border:`2px solid ${isA?ACCENT:C.border}`,borderRadius:7,padding:"5px 2px",cursor:"pointer",fontFamily:"inherit",textAlign:"center",boxShadow:isA?`0 0 10px ${ACCENT}33`:"none"}}>
-                  <div style={{fontSize:10,fontWeight:900,fontFamily:"monospace"}}>±{k}σ</div>
-                  <div style={{fontSize:8,color:isA?C.teal:C.dim,fontFamily:"monospace"}}>{lo}–{hi}</div>
-                </button>);})}
-              </div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+              {[0.5,1.0,1.5,2.0].map(k=>{const lo=Math.round(muReale-k*sigmaReale);const hi=Math.round(muReale+k*sigmaReale);const isA=minSum===lo&&maxSum===hi;return(<button key={k} onClick={()=>{setMinSum(lo);setMaxSum(hi);}} style={{flex:1,minWidth:50,background:isA?`${ACCENT}22`:"#080816",color:isA?ACCENT:C.dim,border:`1px solid ${isA?ACCENT:C.border}`,borderRadius:7,padding:"4px 2px",cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
+                <div style={{fontSize:10,fontWeight:900}}>±{k}σ</div><div style={{fontSize:8,color:isA?C.teal:C.dim}}>{lo}–{hi}</div>
+              </button>);})}
             </div>
             <div style={{display:"flex",gap:6}}>
-              {[{l:"Min Σ",v:minSum,set:setMinSum},{l:"Max Σ",v:maxSum,set:setMaxSum}].map(f=>(<div key={f.l} style={{flex:1}}><div style={{color:C.dim,fontSize:9,marginBottom:2}}>{f.l}</div><input type="number" value={f.v} onChange={e=>f.set(+e.target.value)} style={{width:"100%",background:"#0a0a1c",color:C.text,border:"1px solid #2d2d54",borderRadius:5,padding:"5px",fontFamily:"monospace",fontWeight:700,outline:"none",boxSizing:"border-box"}}/></div>))}
+              {[{l:"Min Σ",v:minSum,set:setMinSum},{l:"Max Σ",v:maxSum,set:setMaxSum}].map(f=>(<div key={f.l} style={{flex:1}}><div style={{color:C.dim,fontSize:9,marginBottom:2}}>{f.l}</div><input type="number" value={f.v} onChange={e=>f.set(+e.target.value)} style={{width:"100%",background:"#0a0a1c",color:C.text,border:"1px solid #2d2d54",borderRadius:5,padding:"5px",fontFamily:"monospace",outline:"none",boxSizing:"border-box"}}/></div>))}
             </div>
           </div>
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:10}}>
             <div style={{color:ACCENT,fontSize:11,fontWeight:700,marginBottom:6}}>☯️ Pari/Dispari</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:3}}>
-              {ratioOpts.map(r=>(<button key={r.v} onClick={()=>setRatio(r.v)} style={{background:ratio===r.v?"#2d3748":"#0a0a1c",color:ratio===r.v?"#00f2fe":C.text,border:`1px solid ${ratio===r.v?"#00f2fe":"#2d2d54"}`,borderRadius:5,padding:"4px 2px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{r.l}</button>))}
-            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:3}}>{ratioOpts.map(r=>(<button key={r.v} onClick={()=>setRatio(r.v)} style={{background:ratio===r.v?"#2d3748":"#0a0a1c",color:ratio===r.v?"#00f2fe":C.text,border:`1px solid ${ratio===r.v?"#00f2fe":"#2d2d54"}`,borderRadius:5,padding:"4px 2px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{r.l}</button>))}</div>
           </div>
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:10}}>
             <div style={{color:ACCENT,fontSize:11,fontWeight:700,marginBottom:6}}>📊 Filtri</div>
             <div style={{marginBottom:5}}><div style={{color:C.orange,fontSize:9,marginBottom:2}}>🔥 Frequenti:</div><input type="text" value={freqInput} onChange={e=>setFreqInput(e.target.value)} placeholder="Es. 39,57,64" style={{width:"100%",background:"#0a0a1c",color:C.text,border:"1px solid #2d2d54",borderRadius:5,padding:"4px",fontSize:10,outline:"none",boxSizing:"border-box"}}/></div>
             <div><div style={{color:C.teal,fontSize:9,marginBottom:2}}>❄️ Ritardatari:</div><input type="text" value={delayInput} onChange={e=>setDelayInput(e.target.value)} placeholder="Es. 4,15,30" style={{width:"100%",background:"#0a0a1c",color:C.text,border:"1px solid #2d2d54",borderRadius:5,padding:"4px",fontSize:10,outline:"none",boxSizing:"border-box"}}/></div>
           </div>
-          {/* FILTRO DECINE — RESPONSIVE: 5 colonne su mobile */}
           {(()=>{
             const DECINE_UI=[{label:"1–10",min:1,max:10},{label:"11–20",min:11,max:20},{label:"21–30",min:21,max:30},{label:"31–40",min:31,max:40},{label:"41–50",min:41,max:50},{label:"51–60",min:51,max:60},{label:"61–70",min:61,max:70},{label:"71–80",min:71,max:80},{label:"81–90",min:81,max:90}];
             const DC=["#E8B84B","#F07030","#C94040","#8A5CC4","#4A8FD4","#2BA89A","#4A9E5C","#F07030","#E8B84B"];
@@ -952,21 +758,19 @@ function TabGeneratore(){
             const totRichiesti=[...decineAttive.values()].reduce((a,b)=>a+b,0);
             return(<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:12,gridColumn:"1 / -1"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <div style={{color:ACCENT,fontSize:11,fontWeight:700}}>🔢 Filtro Decine (1–90)</div>
+                <div style={{color:ACCENT,fontSize:11,fontWeight:700}}>🔢 Filtro Decine</div>
                 <button onClick={()=>setDecineAttive(new Map())} style={{background:"transparent",color:C.dim,border:`1px solid ${C.border}`,borderRadius:5,padding:"3px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✕ Reset</button>
               </div>
-              <div style={{color:C.dim,fontSize:9,marginBottom:8}}>{decineAttive.size===0?"Nessun filtro — premi + per impostare":`${decineAttive.size} decine attive — ${totRichiesti} su 6`}</div>
-              {/* GRIGLIA RESPONSIVE: 5 su mobile, 9 su desktop */}
+              <div style={{color:C.dim,fontSize:9,marginBottom:8}}>{decineAttive.size===0?"Nessun filtro":`${decineAttive.size} decine — ${totRichiesti} su 6`}</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(60px,1fr))",gap:4}}>
-                {medieDec.map((d,i)=>{const cnt=decineAttive.get(i)||0;return(<div key={d.label} style={{background:cnt>0?`${DC[i]}18`:"#080816",border:`2px solid ${cnt>0?DC[i]:C.border}`,borderRadius:8,padding:"5px 3px",textAlign:"center",transition:"all 0.15s"}}>
-                  <div style={{color:cnt>0?DC[i]:C.dim,fontSize:8,fontWeight:700,marginBottom:1}}>{d.label}</div>
+                {medieDec.map((d,i)=>{const cnt=decineAttive.get(i)||0;return(<div key={d.label} style={{background:cnt>0?`${DC[i]}18`:"#080816",border:`2px solid ${cnt>0?DC[i]:C.border}`,borderRadius:8,padding:"5px 3px",textAlign:"center"}}>
+                  <div style={{color:cnt>0?DC[i]:C.dim,fontSize:8,fontWeight:700}}>{d.label}</div>
                   <div style={{background:"#0a0a18",borderRadius:3,height:3,overflow:"hidden",margin:"2px 0"}}><div style={{background:DC[i],height:"100%",width:`${(d.media/Math.max(maxMedia,0.1)*100)}%`}}/></div>
                   <div style={{color:cnt>0?DC[i]:"#555",fontSize:13,fontWeight:900,fontFamily:"monospace",margin:"2px 0",minHeight:18}}>{cnt>0?cnt:"–"}</div>
                   <div style={{display:"flex",gap:2,justifyContent:"center"}}>
                     <button onClick={e=>{e.stopPropagation();toggleDec(i,-1);}} style={{width:20,height:20,borderRadius:4,background:cnt>0?"#1a0606":"#1a1a2e",color:cnt>0?"#C94040":"#333",border:`1px solid ${cnt>0?"#C94040":"#333"}`,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
                     <button onClick={e=>{e.stopPropagation();toggleDec(i,1);}} style={{width:20,height:20,borderRadius:4,background:`${DC[i]}22`,color:DC[i],border:`1px solid ${DC[i]}`,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
                   </div>
-                  <div style={{color:C.dim,fontSize:7,marginTop:1}}>μ{d.media.toFixed(1)}</div>
                 </div>);})}
               </div>
             </div>);
@@ -981,62 +785,15 @@ function TabGeneratore(){
               <span style={{background:"#12122a",borderRadius:4,padding:"2px 7px",color:ACCENT,fontSize:10}}>Σ {r.sum}</span>
               <span style={{background:"#12122a",borderRadius:4,padding:"2px 7px",color:C.text,fontSize:10}}>{r.evens}P–{r.odds}D</span>
               <span style={{background:"#12122a",borderRadius:4,padding:"2px 7px",fontSize:10,color:Math.abs(parseFloat(r.zScore))<1?C.green:C.orange}}>z={r.zScore}</span>
-              <button onClick={()=>{const t={id:Date.now()+i,nums:r.nums,superstar:r.superstar,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1].n,strategy:"tattico",sum:r.sum};const prev=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");localStorage.setItem(LS_TICKETS_S,JSON.stringify([...prev,t]));alert(`✅ Linea ${i+1} salvata!\n${r.nums.join("-")} | SS:${r.superstar||"—"}`);}} style={{background:`${C.purple}22`,color:C.purple,border:`1px solid ${C.purple}`,borderRadius:6,padding:"3px 10px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva</button>
+              <button onClick={()=>{const t={id:Date.now()+i,nums:r.nums,superstar:r.superstar,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:"tattico",sum:r.sum};const prev=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");localStorage.setItem(LS_TICKETS_S,JSON.stringify([...prev,t]));alert(`✅ Linea ${i+1} salvata!`);}} style={{background:`${C.purple}22`,color:C.purple,border:`1px solid ${C.purple}`,borderRadius:6,padding:"3px 10px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva</button>
             </div>
           </div>
           <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
             <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{r.nums.map(n=><Ball key={n} num={n} color={ACCENT} size={34}/>)}</div>
-            <span style={{color:C.dim}}>│</span>
-            {r.superstar?<Ball num={r.superstar} size={34} gold/>:null}
-            <span style={{color:"#FFD700",fontSize:10}}>SS</span>
+            <span style={{color:C.dim}}>│</span>{r.superstar?<Ball num={r.superstar} size={34} gold/>:null}<span style={{color:"#FFD700",fontSize:10}}>SS</span>
           </div>
         </div>))}
       </div>)}
-    </div>
-  );
-}
-
-function TabConfronto(){
-  const allDraws=useDraws();
-  const [strategy,setStrategy]=useState("balanced");
-  const [winSize,setWinSize]=useState(Math.min(8,DRAWS.length));
-  const [detail,setDetail]=useState(null);
-  const data=useMemo(()=>{
-    return allDraws.map((d,i)=>{
-      const history=allDraws.slice(0,i);if(history.length<3)return null;
-      const w=history.slice(-winSize);
-      const expFreq=winSize*PICK/POOL,sigma=Math.sqrt(expFreq*(1-PICK/POOL));
-      const freq=Array(POOL+1).fill(0);w.forEach(x=>x.nums.forEach(n=>freq[n]++));
-      const scored=Array.from({length:POOL},(_,j)=>{const num=j+1,f=freq[num],z=(f-expFreq)/sigma;const unpop=POPULAR.has(num)?0.35:(num>Math.floor(POOL*0.35)?1.3:1.0);return{num,f,z,score:Math.abs(z)*unpop};});
-      const rng=mkRng(i*31+7);
-      let pool=[...scored].sort((a,b)=>b.score-a.score).map(c=>({...c,_s:c.score+rng()*0.25})).sort((a,b)=>b._s-a._s);
-      const top=pool.slice(0,25);let best=null,bestDist=Infinity;
-      for(let t=0;t<2000;t++){const sh=[...top].sort(()=>rng()-0.5).slice(0,PICK).map(c=>c.num).sort((a,b)=>a-b);const s=sm(sh),dist=Math.abs(s-MU_TEO);if(s>=180&&s<=380&&dist<bestDist){best=sh;bestDist=dist;if(dist<10)break;}}
-      if(!best)best=top.slice(0,PICK).map(c=>c.num).sort((a,b)=>a-b);
-      return{n:d.n,date:d.date,realNums:d.nums,sysNums:best,realSum:sm(d.nums),sysSum:sm(best),delta:sm(best)-sm(d.nums),matches:d.nums.filter(n=>best.includes(n)).length};
-    }).filter(Boolean);
-  },[strategy,winSize,allDraws]);
-  const avgMatch=data.length?avg(data.map(d=>d.matches)):0;
-  const matchDist=[0,1,2,3,4,5,6].map(m=>({m,count:data.filter(d=>d.matches===m).length}));
-  return(
-    <div>
-      <h2 style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:16,marginBottom:12}}>🔁 Confronto Reale vs Sistema</h2>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
-        {[{id:"cold",l:"❄️",c:C.teal},{id:"unpop",l:"👥",c:C.purple},{id:"balanced",l:"⚖️",c:ACCENT}].map(s=>(<button key={s.id} onClick={()=>setStrategy(s.id)} style={{background:strategy===s.id?`${s.c}22`:"transparent",color:strategy===s.id?s.c:C.dim,border:`1px solid ${strategy===s.id?s.c:C.border}`,borderRadius:14,padding:"5px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{s.l}</button>))}
-        {[3,5,8].map(w=>(<button key={w} onClick={()=>setWinSize(Math.min(w,allDraws.length))} style={{background:winSize===Math.min(w,allDraws.length)?`${C.purple}22`:"transparent",color:winSize===Math.min(w,allDraws.length)?C.purple:C.dim,border:`1px solid ${winSize===Math.min(w,allDraws.length)?C.purple:C.border}`,borderRadius:8,padding:"4px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>W{w}</button>))}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8,marginBottom:14}}>
-        <KpiCard label="Analizzate" value={data.length}/><KpiCard label="Match medi" value={avgMatch.toFixed(3)} color={C.teal} sub="Caso: 0.200"/><KpiCard label="Miglioram." value={`${((avgMatch-0.2)/0.2*100).toFixed(1)}%`} color={avgMatch>0.2?C.green:C.red}/><KpiCard label="Max match" value={`${Math.max(0,...data.map(d=>d.matches))}/6`} color={ACCENT}/>
-      </div>
-      <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:12}}>
-        {matchDist.map(({m,count})=>{const col=m>=4?ACCENT:m>=3?C.orange:m>=2?C.teal:C.dim;return(<div key={m} style={{flex:1,background:C.card,border:`1px solid ${col}33`,borderTop:`2px solid ${col}`,borderRadius:8,padding:"8px 4px",textAlign:"center"}}><div style={{color:col,fontSize:17,fontWeight:900,fontFamily:"monospace"}}>{count}</div><div style={{color:C.dim,fontSize:9}}>{m}✓</div><div style={{color:`${col}99`,fontSize:9}}>{data.length?(count/data.length*100).toFixed(0):0}%</div></div>);})}
-      </div>
-      <div style={{display:"flex",flexDirection:"column",gap:5}}>
-        {[...data].reverse().slice(0,20).map(d=>{const isOpen=detail===d.n;const mCol=d.matches>=4?ACCENT:d.matches>=3?C.orange:d.matches>=2?C.teal:C.dim;return(<div key={d.n}><div onClick={()=>setDetail(isOpen?null:d.n)} style={{background:isOpen?`${ACCENT}08`:C.card,border:`1px solid ${isOpen?`${ACCENT}44`:C.border}`,borderRadius:isOpen?"8px 8px 0 0":8,padding:"8px 12px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:5}}>
-          <div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{color:C.dim,fontSize:10}}>#{d.n}·{d.date}</span><div style={{display:"flex",gap:3}}>{d.realNums.map(n=><Ball key={n} num={n} color={d.sysNums?.includes(n)?ACCENT:C.orange} size={20} glow={d.sysNums?.includes(n)}/>)}</div></div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{color:mCol,fontFamily:"monospace",fontSize:11,fontWeight:700}}>{d.matches}✓</span><span style={{color:C.dim}}>{isOpen?"▲":"▼"}</span></div>
-        </div></div>);})}
-      </div>
     </div>
   );
 }
@@ -1051,8 +808,9 @@ function TabEstrazioni({onUpdate}){
   const [saved,setSaved]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS_KEY_S)||"[]");}catch{return [];}});
   const [error,setError]=useState("");
   const [success,setSuccess]=useState("");
+  const [savingToDb,setSavingToDb]=useState(false);
   const persist=(list)=>{localStorage.setItem(LS_KEY_S,JSON.stringify(list));setSaved(list);onUpdate(list);};
-  const add=()=>{
+  const add=async()=>{
     setError("");setSuccess("");
     const n=parseInt(concorso)||0;
     const pNums=nums.map(v=>parseInt(v)||0);
@@ -1064,21 +822,41 @@ function TabEstrazioni({onUpdate}){
     const newDraw={n,date:date.trim(),nums:[...new Set(pNums)].sort((a,b)=>a-b)};
     if(j>=1&&j<=90)newDraw.jolly=j;
     if(ss>=1&&ss<=90)newDraw.superstar=ss;
+    // Salva in Supabase
+    setSavingToDb(true);
+    try{
+      const dateIso=date.trim().split("/").length===2?`2026-${date.trim().split("/")[1].padStart(2,"0")}-${date.trim().split("/")[0].padStart(2,"0")}`:date.trim();
+      const {error:dbErr}=await supabase.from("superenalotto").insert({
+        data:dateIso,
+        n1:newDraw.nums[0],n2:newDraw.nums[1],n3:newDraw.nums[2],
+        n4:newDraw.nums[3],n5:newDraw.nums[4],n6:newDraw.nums[5],
+        jolly:j||null,superstar:ss||null,
+      });
+      if(dbErr) throw dbErr;
+      setSuccess(`✅ Concorso #${n} salvato nel database!`);
+    }catch(err){
+      console.error(err);
+      setSuccess(`✅ Salvato localmente (DB: ${err.message})`);
+    }
+    setSavingToDb(false);
     const updated=[...saved,newDraw].sort((a,b)=>(a.n||0)-(b.n||0));
     persist(updated);
     setConcorso("");setDate("");setNums(Array(PICK).fill(""));setJollyInput("");setSuperstarInput("");
-    setSuccess(`✓ Concorso #${n} del ${date} aggiunto!`);
-    setTimeout(()=>setSuccess(""),3000);
+    setTimeout(()=>setSuccess(""),4000);
   };
   const remove=(idx)=>persist(saved.filter((_,i)=>i!==idx));
   return(
     <div>
       <h2 style={{color:C.green,fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>📥 Inserimento Nuove Estrazioni</h2>
+      <div style={{background:`${C.teal}11`,border:`1px solid ${C.teal}33`,borderRadius:10,padding:"8px 12px",marginBottom:12,fontSize:11}}>
+        <span style={{color:C.teal}}>🔗 Database Supabase collegato — </span>
+        <span style={{color:C.dim}}>le nuove estrazioni vengono salvate nel DB e sono disponibili a tutti</span>
+      </div>
       <div style={{background:"#0a1a0a",border:`2px solid ${C.green}44`,borderRadius:12,padding:16,marginBottom:20}}>
         <div style={{color:C.green,fontWeight:700,fontSize:13,marginBottom:12}}>➕ Aggiungi estrazione</div>
         <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
           <div><div style={{color:C.dim,fontSize:10,marginBottom:3}}>Concorso #</div><input type="number" value={concorso} onChange={e=>setConcorso(e.target.value)} placeholder="85" style={{width:70,textAlign:"center",background:"#050510",color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"7px 4px",fontSize:14,fontFamily:"monospace",outline:"none"}}/></div>
-          <div><div style={{color:C.dim,fontSize:10,marginBottom:3}}>Data</div><input type="text" value={date} onChange={e=>setDate(e.target.value)} placeholder="dd/mm" style={{width:80,textAlign:"center",background:"#050510",color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"7px 6px",fontSize:13,fontFamily:"monospace",outline:"none"}}/></div>
+          <div><div style={{color:C.dim,fontSize:10,marginBottom:3}}>Data (gg/mm)</div><input type="text" value={date} onChange={e=>setDate(e.target.value)} placeholder="dd/mm" style={{width:80,textAlign:"center",background:"#050510",color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"7px 6px",fontSize:13,fontFamily:"monospace",outline:"none"}}/></div>
         </div>
         <div style={{marginBottom:10}}>
           <div style={{color:C.dim,fontSize:10,marginBottom:6}}>{PICK} Numeri (1–{POOL})</div>
@@ -1092,22 +870,10 @@ function TabEstrazioni({onUpdate}){
         </div>
         {error&&<div style={{color:C.red,fontSize:12,marginBottom:8,padding:"6px 10px",background:`${C.red}11`,borderRadius:6}}>⚠️ {error}</div>}
         {success&&<div style={{color:C.green,fontSize:12,marginBottom:8,padding:"6px 10px",background:`${C.green}11`,borderRadius:6}}>{success}</div>}
-        <button onClick={add} style={{width:"100%",padding:"12px",background:`linear-gradient(135deg,${C.green},#2BA89A)`,color:"#050510",border:"none",borderRadius:10,fontSize:15,fontWeight:900,cursor:"pointer",fontFamily:"Georgia,serif"}}>✅ Aggiungi Estrazione</button>
+        <button onClick={add} disabled={savingToDb} style={{width:"100%",padding:"12px",background:savingToDb?"#1a3a1a":`linear-gradient(135deg,${C.green},#2BA89A)`,color:savingToDb?"#4A9E5C":"#050510",border:"none",borderRadius:10,fontSize:15,fontWeight:900,cursor:savingToDb?"not-allowed":"pointer",fontFamily:"Georgia,serif"}}>
+          {savingToDb?"⏳ Salvataggio...":"✅ Aggiungi Estrazione"}
+        </button>
       </div>
-      {saved.length>0&&(<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
-        <div style={{color:C.green,fontWeight:700,fontSize:13,marginBottom:10}}>📋 Estrazioni aggiunte ({saved.length})</div>
-        <div style={{display:"flex",flexDirection:"column",gap:5}}>
-          {[...saved].reverse().map((d,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,background:"#080816",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",flexWrap:"wrap"}}>
-            <span style={{color:C.dim,fontSize:10,minWidth:70}}>#{d.n}·{d.date}</span>
-            <div style={{display:"flex",gap:4}}>{d.nums.map(n=><Ball key={n} num={n} color={ACCENT} size={26}/>)}</div>
-            {d.jolly&&<><span style={{color:C.dim}}>│</span><Ball num={d.jolly} color="#aaa" size={24}/><span style={{color:"#aaa",fontSize:9}}>J</span></>}
-            {d.superstar&&<Ball num={d.superstar} size={24} gold/>}
-            <span style={{color:ACCENT,fontFamily:"monospace",fontWeight:700,fontSize:12,marginLeft:"auto"}}>Σ{sm(d.nums)}</span>
-            <button onClick={()=>remove(saved.length-1-i)} style={{background:"transparent",color:C.red,border:`1px solid ${C.red}33`,borderRadius:5,padding:"3px 8px",fontSize:10,cursor:"pointer"}}>✕</button>
-          </div>))}
-        </div>
-        <button onClick={()=>persist([])} style={{background:"transparent",color:C.red,border:`1px solid ${C.red}33`,borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",marginTop:10}}>🗑 Cancella tutte</button>
-      </div>)}
     </div>
   );
 }
@@ -1130,7 +896,7 @@ function TabBiglietti(){
   return(
     <div>
       <h2 style={{color:C.purple,fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>🎫 Biglietti Giocati</h2>
-      <p style={{color:C.dim,fontSize:11,marginBottom:16,lineHeight:1.7}}>Confronto automatico con le estrazioni successive.</p>
+      <p style={{color:C.dim,fontSize:11,marginBottom:16,lineHeight:1.7}}>Confronto automatico con le estrazioni successive ({allDraws.length} totali).</p>
       {tickets.length===0&&(<div style={{textAlign:"center",color:C.dim,padding:"28px 0",fontSize:13,background:C.card,border:`1px solid ${C.border}`,borderRadius:12}}>Nessun biglietto.<br/><span style={{fontSize:11}}>Genera nel tab 🎯 e premi 💾 Salva.</span></div>)}
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         {[...tickets].reverse().map(ticket=>{
@@ -1146,7 +912,7 @@ function TabBiglietti(){
               </div>
               <div style={{flex:1,minWidth:120}}>
                 <div style={{color:C.dim,fontSize:10}}>Giocato {ticket.date} · dopo #{ticket.concorso||"?"} · Σ={sm(ticket.nums)}</div>
-                {results.length>0?(<div style={{color:bestPts>=2?bestCol:C.dim,fontWeight:700,fontSize:12}}>{bestPts>=2?`🎯 ${PRIZE_LABELS[Math.min(bestPts,6)]} — max ${bestPts}✓`:`Nessun punto`}</div>):<div style={{color:C.dim,fontSize:11}}>⏳ In attesa dopo #{ticket.concorso||"?"}</div>}
+                {results.length>0?(<div style={{color:bestPts>=2?bestCol:C.dim,fontWeight:700,fontSize:12}}>{bestPts>=2?`🎯 ${PRIZE_LABELS[Math.min(bestPts,6)]} — max ${bestPts}✓`:`Nessun punto`}</div>):<div style={{color:C.dim,fontSize:11}}>⏳ In attesa</div>}
               </div>
               {bestPts>=2&&!pendingDel&&(<div style={{background:`${bestCol}22`,border:`2px solid ${bestCol}`,borderRadius:8,padding:"5px 10px",textAlign:"center"}}><div style={{color:bestCol,fontSize:20,fontWeight:900,fontFamily:"monospace"}}>{bestPts}</div><div style={{color:bestCol,fontSize:8}}>punti</div></div>)}
               <span style={{color:C.dim}}>{isOpen&&!pendingDel?"▲":"▼"}</span>
@@ -1156,9 +922,9 @@ function TabBiglietti(){
               {results.length===0?<div style={{color:C.dim,fontSize:12,textAlign:"center"}}>⏳ Nessuna estrazione successiva.</div>:(
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
                   {results.map(r=>{const col=PRIZE_COLORS[Math.min(r.pts,6)]||C.dim;const hasPts=r.pts>0;return(<div key={r.n} style={{background:r.pts>=2?`${col}10`:hasPts?`${col}08`:"#07070f",border:`1px solid ${r.pts>=2?col:hasPts?col+"66":C.border}`,borderRadius:8,padding:"8px 12px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6,marginBottom:8}}><span style={{color:C.dim,fontSize:11}}>Est. <strong style={{color:ACCENT}}>#{r.n}</strong> · {r.date}</span><div style={{display:"flex",gap:6,alignItems:"center"}}>{hasPts&&<span style={{background:`${col}22`,border:`1px solid ${col}`,borderRadius:5,padding:"2px 8px",color:col,fontWeight:700,fontSize:11}}>{r.pts}✓</span>}<span style={{color:col,fontWeight:700,fontSize:12}}>{PRIZE_LABELS[Math.min(r.pts,6)]}</span></div></div>
-                    <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:hasPts?6:0}}>{r.nums.map(n=>{const hit=ticket.nums.includes(n);return(<div key={n} style={{position:"relative"}}><Ball num={n} color={hit?col:"#2a2a3a"} size={28} glow={hit&&r.pts>=2}/>{hit&&<div style={{position:"absolute",top:-3,right:-3,width:9,height:9,borderRadius:"50%",background:col,border:"1px solid #06060e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:6,color:"#000",fontWeight:900}}>✓</div>}</div>);})}{typeof r.superstar==="number"?<><span style={{color:C.dim,fontSize:14,alignSelf:"center"}}>│</span><Ball num={r.superstar} size={26} gold/></>:null}</div>
-                    {r.matches.length>0&&(<div style={{background:`${col}15`,borderRadius:5,padding:"4px 10px",display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}><span style={{color:col,fontSize:10,fontWeight:700}}>✓ Indovinati:</span><div style={{display:"flex",gap:4}}>{r.matches.map(n=><span key={n} style={{background:`${col}33`,border:`1px solid ${col}`,borderRadius:4,padding:"1px 6px",color:col,fontFamily:"monospace",fontSize:11,fontWeight:700}}>{n}</span>)}</div></div>)}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6,marginBottom:6}}><span style={{color:C.dim,fontSize:11}}>Est. <strong style={{color:ACCENT}}>#{r.n}</strong> · {r.date?.substring(0,5)||""}</span><span style={{color:col,fontWeight:700,fontSize:12}}>{PRIZE_LABELS[Math.min(r.pts,6)]}</span></div>
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{r.nums.map(n=>{const hit=ticket.nums.includes(n);return(<div key={n} style={{position:"relative"}}><Ball num={n} color={hit?col:"#2a2a3a"} size={28} glow={hit&&r.pts>=2}/>{hit&&<div style={{position:"absolute",top:-3,right:-3,width:9,height:9,borderRadius:"50%",background:col,border:"1px solid #06060e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:6,color:"#000",fontWeight:900}}>✓</div>}</div>);})}</div>
+                    {r.matches.length>0&&(<div style={{background:`${col}15`,borderRadius:5,padding:"4px 10px",display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginTop:6}}><span style={{color:col,fontSize:10,fontWeight:700}}>✓ Indovinati:</span><div style={{display:"flex",gap:4}}>{r.matches.map(n=><span key={n} style={{background:`${col}33`,border:`1px solid ${col}`,borderRadius:4,padding:"1px 6px",color:col,fontFamily:"monospace",fontSize:11,fontWeight:700}}>{n}</span>)}</div></div>)}
                   </div>);})}
                 </div>
               )}
@@ -1177,18 +943,61 @@ const TABS=[
   {id:"segnali",icon:"🔬",label:"Segnali & Freq."},
   {id:"banda",icon:"📐",label:"Banda Adattiva"},
   {id:"generatore",icon:"🎯",label:"Generatore"},
-  {id:"confronto",icon:"🔁",label:"Confronto"},
   {id:"estrazioni",icon:"📥",label:"Estrazioni"},
   {id:"biglietti",icon:"🎫",label:"Biglietti"},
 ];
 
 export default function App(){
   const [tab,setTab]=useState("animazione");
+  const [dbDraws,setDbDraws]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [extraDraws,setExtraDraws]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS_KEY_S)||"[]");}catch{return [];}});
-  const allDraws=useMemo(()=>{const extraNs=new Set(extraDraws.map(d=>d.n));return [...DRAWS.filter(d=>!extraNs.has(d.n)),...extraDraws].sort((a,b)=>a.n-b.n);},[extraDraws]);
+
+  // Carica da Supabase
+  useEffect(()=>{
+    async function loadDraws(){
+      try{
+        const {data,error}=await supabase
+          .from("superenalotto")
+          .select("*")
+          .order("data",{ascending:true});
+        if(error) throw error;
+        const mapped=data.map(r=>({
+          n:r.id,
+          date:r.data?r.data.substring(5).split("-").reverse().join("/"):"",
+          nums:[r.n1,r.n2,r.n3,r.n4,r.n5,r.n6].filter(Boolean).sort((a,b)=>a-b),
+          jolly:r.jolly||0,
+          superstar:r.superstar||0,
+        }));
+        setDbDraws(mapped);
+      }catch(err){
+        console.error("Supabase error:",err);
+        setDbDraws(DRAWS_BASE);
+      }finally{
+        setLoading(false);
+      }
+    }
+    loadDraws();
+  },[]);
+
+  const allDraws=useMemo(()=>{
+    const base=dbDraws.length>0?dbDraws:DRAWS_BASE;
+    const extraNs=new Set(extraDraws.map(d=>d.n));
+    return [...base.filter(d=>!extraNs.has(d.n)),...extraDraws].sort((a,b)=>a.n-b.n);
+  },[dbDraws,extraDraws]);
+
   const handleUpdate=useCallback((list)=>{setExtraDraws(list);},[]);
   const last=allDraws[allDraws.length-1];
-  const lastSum=sm(last.nums);
+  const lastSum=last?sm(last.nums):0;
+
+  if(loading) return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
+      <div style={{color:ACCENT,fontSize:28}}>🎱</div>
+      <div style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:18}}>Caricamento dati storici...</div>
+      <div style={{color:C.dim,fontSize:12}}>Connessione a Supabase</div>
+    </div>
+  );
+
   return(
     <DrawsContext.Provider value={allDraws}>
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Courier New',monospace",color:C.text,paddingBottom:60}}>
@@ -1200,15 +1009,15 @@ export default function App(){
             <span style={{background:`${ACCENT}22`,border:`1px solid ${ACCENT}44`,borderRadius:20,padding:"2px 10px",color:ACCENT,fontSize:10,fontWeight:700}}>DASHBOARD</span>
           </div>
           <div style={{display:"flex",justifyContent:"center",gap:12,flexWrap:"wrap",marginBottom:10,fontSize:11}}>
-            <span style={{color:C.dim}}>Conc. <strong style={{color:ACCENT}}>n.{last.n}</strong> · {last.date}</span>
-            <span style={{color:C.dim}}>Ultima Σ: <strong style={{color:lastSum>MU_TEO?C.orange:C.teal}}>{lastSum}</strong></span>
-            <span style={{color:C.dim}}>Tot.: <strong style={{color:ACCENT}}>{allDraws.length}</strong></span>
+            <span style={{color:C.dim}}>Ultima: <strong style={{color:ACCENT}}>{last?.date?.substring(0,5)||""}</strong></span>
+            <span style={{color:C.dim}}>Σ: <strong style={{color:lastSum>MU_TEO?C.orange:C.teal}}>{lastSum}</strong></span>
+            <span style={{color:C.dim}}>Storico: <strong style={{color:ACCENT}}>{allDraws.length} est.</strong></span>
             <span style={{color:C.dim}}>Jackpot: <strong style={{color:C.purple}}>{JACKPOT}</strong></span>
           </div>
-          <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+          {last&&(<div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
             {last.nums.map(n=><Ball key={n} num={n} color={ACCENT} size={32} glow/>)}
-            <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:C.dim,fontSize:14}}>│</span>{last.superstar?<Ball num={last.superstar} size={32} gold/>:null}<span style={{color:"#FFD700",fontSize:9}}>SS</span></div>
-          </div>
+            <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:C.dim,fontSize:14}}>│</span>{last.jolly?<Ball num={last.jolly} color="#aaa" size={28}/>:null}<span style={{color:"#aaa",fontSize:9}}>J</span>{last.superstar?<Ball num={last.superstar} size={28} gold/>:null}<span style={{color:"#FFD700",fontSize:9}}>SS</span></div>
+          </div>)}
         </div>
         <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`}}>
           {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?`linear-gradient(135deg,${t.id==="biglietti"?C.purple:ACCENT},#2BA89A)`:"transparent",color:tab===t.id?"#fff":C.dim,border:tab===t.id?"none":`1px solid ${C.border}`,borderRadius:20,padding:"7px 10px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{t.icon} {t.label}</button>))}
@@ -1217,11 +1026,10 @@ export default function App(){
         {tab==="segnali"&&<TabSegnali/>}
         {tab==="banda"&&<TabBanda/>}
         {tab==="generatore"&&<TabGeneratore/>}
-        {tab==="confronto"&&<TabConfronto/>}
         {tab==="estrazioni"&&<TabEstrazioni onUpdate={handleUpdate}/>}
         {tab==="biglietti"&&<TabBiglietti/>}
         <div style={{marginTop:24,background:"#070712",border:"1px solid #111122",borderRadius:10,padding:12}}>
-          <div style={{color:"#353545",fontSize:10,lineHeight:1.7}}>⚠️ Conc.n.84 del 16/05/2026: 7-10-35-41-45-61 (SS=45). Jackpot {JACKPOT}. Strumento puramente statistico — nessun potere predittivo. Il gioco può causare dipendenza. Vietato ai minori di 18 anni.</div>
+          <div style={{color:"#353545",fontSize:10,lineHeight:1.7}}>⚠️ Strumento puramente statistico — nessun potere predittivo. Il gioco può causare dipendenza. Vietato ai minori di 18 anni. Dati storici: {allDraws.length} estrazioni (2024–2026).</div>
         </div>
       </div>
     </div>
