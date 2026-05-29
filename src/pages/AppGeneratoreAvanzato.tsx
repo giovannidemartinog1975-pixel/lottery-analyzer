@@ -138,7 +138,6 @@ function generateFiltered(
   }
 
   function processChunk() {
-    }
     const end = Math.min(i1 + CHUNK, POOL - PICK + 2);
     for (; i1 < end; i1++) {
       const a = i1;
