@@ -252,7 +252,7 @@ function TabGeneratore(){
   const [mode,setMode]=useState("auto");const [ticket,setTicket]=useState(null);const [stelle,setStelle]=useState(null);
   const [minSum,setMinSum]=useState(Math.round(muReale-sigmaReale));const [maxSum,setMaxSum]=useState(Math.round(muReale+sigmaReale));
   const [ratio,setRatio]=useState("any");const [freqInput,setFreqInput]=useState("");const [delayInput,setDelayInput]=useState("");
-  const [results,setResults]=useState([]);const [scanned,setScanned]=useState(0);const [loading,setLoading]=useState(false);const [selectedTattico,setSelectedTattico]=useState(new Set());const [showSSTattico,setShowSSTattico]=useState(false);const [chosenSSTattico,setChosenSSTattico]=useState({});
+  const [results,setResults]=useState([]);const [scanned,setScanned]=useState(0);const [loading,setLoading]=useState(false);const [selectedTattico,setSelectedTattico]=useState(new Set());const [showSSTattico,setShowSSTattico]=useState(false);const [chosenSSTattico,setChosenSSTattico]=useState({});const [decineAttive,setDecineAttive]=useState(new Map());
   const loB=Math.round(muCustom-kBand*sigmaReale),hiB=Math.round(muCustom+kBand*sigmaReale);
   const scored=useMemo(()=>scoreNumbers(allDraws,winSize),[allDraws,winSize]);
   const totalOcc=Object.values(stats.freq).reduce((s,v)=>s+v,0);
@@ -266,7 +266,7 @@ function TabGeneratore(){
     setTimeout(()=>{
       const rng=mkRng(Date.now());const found=[],maxAttempts=150000;let sc=0;
       const freqNums=parseNums(freqInput),delayNums=parseNums(delayInput);
-      while(found.length<50&&sc<maxAttempts){sc++;const pool=Array.from({length:POOL},(_,i)=>i+1);const nums=[];while(nums.length<PICK){const idx=Math.floor(rng()*pool.length);nums.push(pool.splice(idx,1)[0]);}nums.sort((a,b)=>a-b);const s=sm(nums);if(s<minSum||s>maxSum)continue;const evens=nums.filter(n=>n%2===0).length,odds=PICK-evens;if(ratio!=="any"){const[re,ro]=ratio.split("-").map(Number);if(evens!==re||odds!==ro)continue;}if(freqNums.length>0&&!nums.some(n=>freqNums.includes(n)))continue;if(delayNums.length>0&&nums.filter(n=>delayNums.includes(n)).length>2)continue;const key=nums.join(",");if(found.some(f=>f.nums.join(",")===key))continue;found.push({nums,sum:s,evens,odds,zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2)});}
+      while(found.length<50&&sc<maxAttempts){sc++;const pool=Array.from({length:POOL},(_,i)=>i+1);const nums=[];while(nums.length<PICK){const idx=Math.floor(rng()*pool.length);nums.push(pool.splice(idx,1)[0]);}nums.sort((a,b)=>a-b);const s=sm(nums);if(s<minSum||s>maxSum)continue;const evens=nums.filter(n=>n%2===0).length,odds=PICK-evens;if(ratio!=="any"){const[re,ro]=ratio.split("-").map(Number);if(evens!==re||odds!==ro)continue;}if(freqNums.length>0&&!nums.some(n=>freqNums.includes(n)))continue;if(delayNums.length>0&&nums.filter(n=>delayNums.includes(n)).length>2)continue;if(decineAttive.size>0){const DT=[{min:1,max:10},{min:11,max:20},{min:21,max:30},{min:31,max:40},{min:41,max:50}];let ok=true;decineAttive.forEach((cnt,idx)=>{if(nums.filter(n=>n>=DT[idx].min&&n<=DT[idx].max).length!==cnt)ok=false;});if(!ok)continue;}const key=nums.join(",");if(found.some(f=>f.nums.join(",")===key))continue;found.push({nums,sum:s,evens,odds,zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2)});}
       setResults(found);setScanned(sc);setLoading(false);
     },50);
   };
@@ -295,8 +295,32 @@ function TabGeneratore(){
         </div>
       </div>
       <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
-        {[{id:"auto",l:"🤖 Automatica"},{id:"tattico",l:"⚡ Tattico"}].map(m=>(<button key={m.id} onClick={()=>setMode(m.id)} style={{background:mode===m.id?`${ACCENT}22`:"transparent",color:mode===m.id?ACCENT:C.dim,border:`1px solid ${mode===m.id?ACCENT:C.border}`,borderRadius:18,padding:"6px 14px",fontSize:11,fontWeight:mode===m.id?700:400,cursor:"pointer",fontFamily:"inherit"}}>{m.l}</button>))}
+        {[{id:"auto",l:"🤖 Automatica"},{id:"manual",l:"✍️ Manuale"},{id:"tattico",l:"⚡ Tattico"}].map(m=>(<button key={m.id} onClick={()=>setMode(m.id)} style={{background:mode===m.id?`${ACCENT}22`:"transparent",color:mode===m.id?ACCENT:C.dim,border:`1px solid ${mode===m.id?ACCENT:C.border}`,borderRadius:18,padding:"6px 14px",fontSize:11,fontWeight:mode===m.id?700:400,cursor:"pointer",fontFamily:"inherit"}}>{m.l}</button>))}
       </div>
+      {mode==="manual"&&(<div>
+        <div style={{color:C.dim,fontSize:11,marginBottom:10}}>Inserisci {PICK} numeri (1–{POOL}) + {STELLE_COUNT} Stelle (1–12).</div>
+        <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginBottom:10}}>
+          {Array.from({length:PICK},(_,i)=>i).map(i=>{
+            const [manV,setManV]=useState("");
+            const num=parseInt(manV)||0,valid=num>=1&&num<=POOL;
+            const col=valid?ACCENT:"#333";
+            return(<div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><Ball num={valid?num:"?"} color={col} size={38}/><input type="number" min={1} max={POOL} value={manV} onChange={e=>setManV(e.target.value)} style={{width:48,textAlign:"center",background:"#080816",color:col,border:`1.5px solid ${valid?`${col}55`:C.border}`,borderRadius:7,padding:"4px 2px",fontSize:13,fontFamily:"monospace",outline:"none"}}/></div>);
+          })}
+          <div style={{display:"flex",alignItems:"center",gap:4,marginLeft:8}}>
+            <span style={{color:C.dim,fontSize:14}}>│</span>
+            <div>
+              <div style={{color:"#FFD700",fontSize:10,marginBottom:4}}>Stelle</div>
+              <div style={{display:"flex",gap:4}}>
+                {Array.from({length:STELLE_COUNT},(_,i)=>i).map(i=>{
+                  const [stV,setStV]=useState("");
+                  const num=parseInt(stV)||0,valid=num>=1&&num<=STELLE_POOL;
+                  return(<div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><Ball num={valid?num:"?"} size={34} gold={valid} star={valid}/><input type="number" min={1} max={STELLE_POOL} value={stV} onChange={e=>setStV(e.target.value)} style={{width:40,textAlign:"center",background:"#080816",color:"#FFD700",border:"1.5px solid #FFD70055",borderRadius:7,padding:"4px 2px",fontSize:13,fontFamily:"monospace",outline:"none"}}/></div>);
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>)}
       {mode==="auto"&&(<div>
         <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10,alignItems:"center"}}>
           {[{id:"cold",l:"❄️",c:C.teal},{id:"unpop",l:"👥",c:C.purple},{id:"balanced",l:"⚖️",c:ACCENT}].map(s=>(<button key={s.id} onClick={()=>setStrategy(s.id)} style={{background:strategy===s.id?`${s.c}22`:"transparent",color:strategy===s.id?s.c:C.dim,border:`1px solid ${strategy===s.id?s.c:C.border}`,borderRadius:14,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{s.l}</button>))}
@@ -336,6 +360,33 @@ function TabGeneratore(){
             <div><div style={{color:C.teal,fontSize:9,marginBottom:2}}>❄️ Ritardatari:</div><input type="text" value={delayInput} onChange={e=>setDelayInput(e.target.value)} placeholder="Es. 3,17" style={{width:"100%",background:"#0a0a1c",color:C.text,border:"1px solid #2d2d54",borderRadius:5,padding:"4px",fontSize:10,outline:"none",boxSizing:"border-box"}}/></div>
           </div>
         </div>
+          {(()=>{
+            const DECINE_T=[{label:"1–10",min:1,max:10},{label:"11–20",min:11,max:20},{label:"21–30",min:21,max:30},{label:"31–40",min:31,max:40},{label:"41–50",min:41,max:50}];
+            const DC=["#E8B84B","#F07030","#8A5CC4","#4A8FD4","#2BA89A"];
+            const medieDec=DECINE_T.map((d,i)=>{const tot=allDraws.reduce((s,dr)=>s+dr.nums.filter(n=>n>=d.min&&n<=d.max).length,0);return{...d,idx:i,media:tot/allDraws.length,pct:tot/(allDraws.length*PICK)*100};});
+            const maxMedia=Math.max(...medieDec.map(m=>m.media));
+            const toggleDecT=(idx,delta)=>setDecineAttive(prev=>{const next=new Map(prev);const nv=Math.max(0,Math.min((next.get(idx)||0)+delta,PICK));if(nv===0)next.delete(idx);else next.set(idx,nv);return next;});
+            return(<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:12,marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <span style={{color:ACCENT,fontSize:11,fontWeight:700}}>🔢 Filtro Decine</span>
+                <button onClick={()=>setDecineAttive(new Map())} style={{background:"transparent",color:C.dim,border:`1px solid ${C.border}`,borderRadius:5,padding:"2px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✕ Reset</button>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:4}}>
+                {medieDec.map((d,i)=>{const cnt=decineAttive.get(i)||0;return(
+                  <div key={d.label} style={{background:cnt>0?`${DC[i]}18`:"#0a0a18",border:`2px solid ${cnt>0?DC[i]:C.border}`,borderRadius:8,padding:"5px 3px",textAlign:"center"}}>
+                    <div style={{color:DC[i],fontSize:8,fontWeight:700}}>{d.label}</div>
+                    <div style={{background:"#0a0a18",borderRadius:2,height:3,overflow:"hidden",margin:"2px 0"}}><div style={{background:DC[i],height:"100%",width:`${(d.media/Math.max(maxMedia,0.1)*100)}%`}}/></div>
+                    <div style={{color:DC[i],fontSize:9,fontWeight:700}}>{d.pct.toFixed(1)}%</div>
+                    <div style={{color:cnt>0?DC[i]:"#555",fontSize:13,fontWeight:900,fontFamily:"monospace",minHeight:16}}>{cnt>0?cnt:"–"}</div>
+                    <div style={{display:"flex",gap:2,justifyContent:"center"}}>
+                      <button onClick={()=>toggleDecT(i,-1)} style={{width:20,height:20,borderRadius:3,background:cnt>0?"#1a0606":"#1a1a2e",color:cnt>0?C.red:"#444",border:`1px solid ${cnt>0?C.red:"#444"}`,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+                      <button onClick={()=>toggleDecT(i,1)} style={{width:20,height:20,borderRadius:3,background:`${DC[i]}22`,color:DC[i],border:`1px solid ${DC[i]}`,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+                    </div>
+                  </div>
+                );})}
+              </div>
+            </div>);
+          })()}
         <button onClick={generaTattico} disabled={loading} style={{width:"100%",padding:"12px",background:loading?"#222":"linear-gradient(135deg,#FF6B35,#E63946)",color:loading?"#666":"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",marginBottom:12}}>{loading?"⏳ Scansione...":"⚡ GENERA COLONNE TATTICHE"}</button>
         {scanned>0&&<div style={{color:C.dim,fontSize:11,marginBottom:8}}>Scansionate: <strong style={{color:C.orange}}>{scanned.toLocaleString("it-IT")}</strong> · Trovate: <strong style={{color:C.green}}>{results.length}</strong></div>}
         {results.length>0&&!showSSTattico&&(
@@ -401,6 +452,69 @@ function TabGeneratore(){
           </div>
         )}
       </div>)}
+    </div>
+  );
+}
+
+function TabConfronto(){
+  const allDraws=useDraws();
+  const [userInput,setUserInput]=useState("");
+  const [userNums,setUserNums]=useState([]);
+  const [compared,setCompared]=useState([]);
+  const confronta=()=>{
+    const nums=userInput.split(/[\s,;]+/).map(s=>parseInt(s.trim())).filter(n=>!isNaN(n)&&n>=1&&n<=POOL);
+    if(nums.length!==PICK){alert(`Inserisci esattamente ${PICK} numeri (1–${POOL})`);return;}
+    if([...new Set(nums)].length!==PICK){alert("Numeri duplicati");return;}
+    const sorted=nums.sort((a,b)=>a-b);setUserNums(sorted);
+    const results=allDraws.slice(-50).map(d=>{const matches=d.nums.filter(n=>sorted.includes(n));return{...d,matches,pts:matches.length};}).sort((a,b)=>b.pts-a.pts);
+    setCompared(results);
+  };
+  const userSum=sm(userNums);
+  const zUser=userNums.length===PICK?zOf(userSum,MU_TEO,SIGMA_TEO):null;
+  return(
+    <div>
+      <h2 style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:16,marginBottom:12}}>🔁 Confronto Cinquina</h2>
+      <div style={{background:C.card,border:`1px solid ${ACCENT}33`,borderRadius:12,padding:14,marginBottom:14}}>
+        <div style={{color:ACCENT,fontWeight:700,fontSize:12,marginBottom:8}}>Inserisci la tua cinquina da confrontare</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+          <input type="text" value={userInput} onChange={e=>setUserInput(e.target.value)} placeholder="Es. 7 15 23 38 45" style={{flex:1,minWidth:180,background:"#080816",color:ACCENT,border:`1px solid ${ACCENT}55`,borderRadius:8,padding:"10px 12px",fontSize:14,fontFamily:"monospace",outline:"none"}}/>
+          <button onClick={confronta} style={{padding:"10px 20px",background:`linear-gradient(135deg,${ACCENT},${C.teal})`,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🔍 Confronta</button>
+        </div>
+        {userNums.length===PICK&&(
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+            {userNums.map(n=><Ball key={n} num={n} color={ACCENT} size={34} glow/>)}
+            <div style={{display:"flex",gap:8,marginLeft:8,flexWrap:"wrap"}}>
+              <span style={{background:`${ACCENT}22`,color:ACCENT,borderRadius:6,padding:"4px 10px",fontSize:12,fontWeight:700}}>Σ={userSum}</span>
+              <span style={{background:`${C.teal}22`,color:C.teal,borderRadius:6,padding:"4px 10px",fontSize:12}}>z={zUser?.toFixed(2)}</span>
+              <span style={{background:"#12122a",color:C.dim,borderRadius:6,padding:"4px 10px",fontSize:12}}>{userNums.filter(n=>n%2===0).length}P–{userNums.filter(n=>n%2!==0).length}D</span>
+            </div>
+          </div>
+        )}
+      </div>
+      {compared.length>0&&(
+        <div>
+          <div style={{color:ACCENT,fontWeight:700,fontSize:13,marginBottom:10}}>Ultime 50 estrazioni — ordinato per punti</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {compared.map(r=>{
+              const col=PRIZE_COLORS[Math.min(r.pts,5)]||C.dim;
+              return(<div key={r.n} style={{background:r.pts>=2?`${col}12`:"#080816",border:`1px solid ${r.pts>=2?col:C.border}`,borderRadius:9,padding:"10px 12px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:4}}>
+                  <span style={{color:C.dim,fontSize:10}}>Est. <strong style={{color:ACCENT}}>#{r.n}</strong> · {r.date?.substring(0,5)||""} · Σ={sm(r.nums)}</span>
+                  <span style={{color:col,fontWeight:700,fontSize:11}}>{r.pts>0?`${r.pts} punt${r.pts===1?"o":"i"}`:"–"}</span>
+                </div>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:4}}>
+                  {r.nums.map(n=>{const hit=userNums.includes(n);return(<div key={n} style={{position:"relative"}}><Ball num={n} color={hit?col:"#2a2a3a"} size={28} glow={hit&&r.pts>=2}/>{hit&&<div style={{position:"absolute",top:-3,right:-3,width:9,height:9,borderRadius:"50%",background:col,border:"1px solid #06060e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:6,color:"#000",fontWeight:900}}>✓</div>}</div>);})}
+                  {r.stelle?.length&&<><span style={{color:C.dim,fontSize:14,alignSelf:"center"}}>│</span>{r.stelle.map(s=><Ball key={s} num={s} size={26} gold star/>)}</>}
+                </div>
+                {r.matches.length>0&&(<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                  <span style={{color:col,fontSize:10,fontWeight:700}}>✓</span>
+                  {r.matches.map(n=><span key={n} style={{background:`${col}33`,border:`1px solid ${col}`,borderRadius:4,padding:"1px 6px",color:col,fontFamily:"monospace",fontSize:11,fontWeight:700}}>{n}</span>)}
+                </div>)}
+              </div>);
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -509,7 +623,7 @@ function TabBiglietti(){
   );
 }
 
-const TABS=[{id:"animazione",icon:"📈",label:"Animazione"},{id:"segnali",icon:"🔬",label:"Segnali & Freq."},{id:"banda",icon:"📐",label:"Banda Adattiva"},{id:"generatore",icon:"🎯",label:"Generatore"},{id:"estrazioni",icon:"📥",label:"Estrazioni"},{id:"biglietti",icon:"🎫",label:"Biglietti"}];
+const TABS=[{id:"animazione",icon:"📈",label:"Animazione"},{id:"segnali",icon:"🔬",label:"Segnali & Freq."},{id:"banda",icon:"📐",label:"Banda Adattiva"},{id:"generatore",icon:"🎯",label:"Generatore"},{id:"confronto",icon:"🔁",label:"Confronto"},{id:"estrazioni",icon:"📥",label:"Estrazioni"},{id:"biglietti",icon:"🎫",label:"Biglietti"}];
 
 export default function App(){
   const [tab,setTab]=useState("animazione");
@@ -558,6 +672,7 @@ export default function App(){
         {tab==="segnali"&&<TabSegnali/>}
         {tab==="banda"&&<TabBanda/>}
         {tab==="generatore"&&<TabGeneratore/>}
+        {tab==="confronto"&&<TabConfronto/>}
         {tab==="estrazioni"&&<TabEstrazioni onUpdate={handleUpdate}/>}
         {tab==="biglietti"&&<TabBiglietti/>}
         <div style={{marginTop:24,background:"#070712",border:"1px solid #111122",borderRadius:10,padding:12}}>
