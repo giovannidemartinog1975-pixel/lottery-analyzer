@@ -602,6 +602,9 @@ function TabGeneratore(){
   const [results,setResults]=useState([]);
   const [scanned,setScanned]=useState(0);
   const [loading,setLoading]=useState(false);
+  const [selectedTattico,setSelectedTattico]=useState(new Set());
+  const [showSSTattico,setShowSSTattico]=useState(false);
+  const [chosenSSTattico,setChosenSSTattico]=useState({});
   const sigmaEff=sigmaMode==="reale"?sigmaReale:SIGMA_TEO;
   const loB=Math.round(muCustom-kBand*sigmaEff),hiB=Math.round(muCustom+kBand*sigmaEff);
   const scored=useMemo(()=>scoreNumbers(allDraws,winSize),[allDraws,winSize]);
@@ -616,10 +619,11 @@ function TabGeneratore(){
   const genera=()=>{const seed=Date.now();setTicket(generateTicket(scored,strategy,loB,hiB,muCustom,seed));setSuperstar(generateSuperStar(seed));};
   const generaTattico=()=>{
     setLoading(true);setResults([]);setScanned(0);
+    setSelectedTattico(new Set());setShowSSTattico(false);setChosenSSTattico({});
     setTimeout(()=>{
-      const rng=mkRng(Date.now());const found=[],maxAttempts=150000;let sc=0;
+      const rng=mkRng(Date.now());const found=[],maxAttempts=500000;let sc=0;
       const freqNums=parseNums(freqInput),delayNums=parseNums(delayInput);
-      while(found.length<5&&sc<maxAttempts){
+      while(found.length<50&&sc<maxAttempts){
         sc++;const pool=Array.from({length:POOL},(_,i)=>i+1);const nums=[];
         while(nums.length<PICK){const idx=Math.floor(rng()*pool.length);nums.push(pool.splice(idx,1)[0]);}
         nums.sort((a,b)=>a-b);const s=sm(nums);if(s<minSum||s>maxSum)continue;
@@ -632,8 +636,10 @@ function TabGeneratore(){
           let decOk=true;decineAttive.forEach((cnt,idx)=>{const inDec=nums.filter(n=>n>=DEC[idx].min&&n<=DEC[idx].max).length;if(inDec!==cnt)decOk=false;});
           if(!decOk)continue;
         }
-        const st=generateSuperStar(sc+Date.now());
-        found.push({nums,sum:s,evens,odds,superstar:st,zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2)});
+        // Evita duplicati
+        const key=nums.join(",");
+        if(found.some(f=>f.nums.join(",")===key))continue;
+        found.push({nums,sum:s,evens,odds,zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2)});
       }
       setResults(found);setScanned(sc);setLoading(false);
     },50);
@@ -778,21 +784,69 @@ function TabGeneratore(){
         </div>
         <button onClick={generaTattico} disabled={loading} style={{width:"100%",padding:"12px",background:loading?"#222":"linear-gradient(135deg,#FF6B35,#E63946)",color:loading?"#666":"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",marginBottom:12}}>{loading?"⏳ Scansione...":"⚡ GENERA COLONNE TATTICHE"}</button>
         {scanned>0&&<div style={{color:C.dim,fontSize:11,marginBottom:8}}>Scansionate: <strong style={{color:C.orange}}>{scanned.toLocaleString("it-IT")}</strong> · Trovate: <strong style={{color:C.green}}>{results.length}</strong></div>}
-        {results.map((r,i)=>(<div key={i} style={{background:C.card,border:`1px solid ${ACCENT}33`,borderLeft:`3px solid ${ACCENT}`,borderRadius:9,padding:"10px 12px",marginBottom:8}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:7,flexWrap:"wrap",gap:5}}>
-            <span style={{color:C.dim,fontSize:10,fontWeight:700}}>LINEA {i+1}</span>
-            <div style={{display:"flex",gap:5,alignItems:"center"}}>
-              <span style={{background:"#12122a",borderRadius:4,padding:"2px 7px",color:ACCENT,fontSize:10}}>Σ {r.sum}</span>
-              <span style={{background:"#12122a",borderRadius:4,padding:"2px 7px",color:C.text,fontSize:10}}>{r.evens}P–{r.odds}D</span>
-              <span style={{background:"#12122a",borderRadius:4,padding:"2px 7px",fontSize:10,color:Math.abs(parseFloat(r.zScore))<1?C.green:C.orange}}>z={r.zScore}</span>
-              <button onClick={()=>{const t={id:Date.now()+i,nums:r.nums,superstar:r.superstar,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:"tattico",sum:r.sum};const prev=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");localStorage.setItem(LS_TICKETS_S,JSON.stringify([...prev,t]));alert(`✅ Linea ${i+1} salvata!`);}} style={{background:`${C.purple}22`,color:C.purple,border:`1px solid ${C.purple}`,borderRadius:6,padding:"3px 10px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva</button>
+        {results.length>0&&!showSSTattico&&(
+          <>
+            <div style={{color:C.dim,fontSize:11,marginBottom:8}}>Clicca le sestine che ti piacciono (max 10), poi premi <strong style={{color:"#FFD700"}}>Scegli SuperStar</strong></div>
+            <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:10}}>
+              {results.map((r,i)=>{
+                const k=r.nums.join(",");const isSel=selectedTattico.has(k);
+                const isHot=n=>scored.find(x=>x.num===n)?.isHot;
+                const isRit=n=>scored.find(x=>x.num===n)?.isCold;
+                return(<div key={i} onClick={()=>{setSelectedTattico(prev=>{const next=new Set(prev);if(next.has(k))next.delete(k);else if(next.size<10)next.add(k);return next;});}} style={{background:isSel?`${ACCENT}12`:"#080816",border:`2px solid ${isSel?ACCENT:C.border}`,borderRadius:8,padding:"7px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <div style={{width:16,height:16,borderRadius:3,border:`2px solid ${isSel?ACCENT:C.dim}`,background:isSel?ACCENT:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#000",fontWeight:900,flexShrink:0}}>{isSel?"✓":""}</div>
+                  <div style={{display:"flex",gap:3,flex:1,flexWrap:"wrap"}}>
+                    {r.nums.map(n=>{const col=isHot(n)?C.orange:isRit(n)?C.teal:ACCENT;return <Ball key={n} num={n} color={col} size={26}/>;})}</div>
+                  <div style={{display:"flex",gap:4,flexShrink:0,flexWrap:"wrap"}}>
+                    <span style={{background:`${ACCENT}22`,color:ACCENT,borderRadius:4,padding:"2px 7px",fontSize:10,fontFamily:"monospace",fontWeight:700}}>Σ{r.sum}</span>
+                    <span style={{background:"#12122a",color:C.dim,borderRadius:4,padding:"2px 7px",fontSize:9}}>{r.evens}P–{r.odds}D</span>
+                    <span style={{background:"#12122a",color:Math.abs(parseFloat(r.zScore))<1?C.green:C.orange,borderRadius:4,padding:"2px 7px",fontSize:9}}>z={r.zScore}</span>
+                  </div>
+                </div>);
+              })}
             </div>
+            {selectedTattico.size>0&&(
+              <button onClick={()=>setShowSSTattico(true)} style={{width:"100%",padding:"12px",background:"linear-gradient(135deg,#FFD700,#F07030)",color:"#000",border:"none",borderRadius:10,fontSize:15,fontWeight:900,cursor:"pointer",fontFamily:"Georgia,serif",marginBottom:8}}>
+                ⭐ Scegli SuperStar per {selectedTattico.size} sestine selezionate
+              </button>
+            )}
+          </>
+        )}
+        {showSSTattico&&(
+          <div style={{background:C.card,border:`2px solid ${C.purple}44`,borderRadius:12,padding:16,marginBottom:14}}>
+            <div style={{color:C.purple,fontWeight:700,fontSize:14,marginBottom:14}}>⭐ Scegli il SuperStar</div>
+            {results.filter(r=>selectedTattico.has(r.nums.join(","))).map((r,idx)=>{
+              const k=r.nums.join(",");
+              const top=getSSSuggestions(allDraws,r.sum,sigmaReale).slice(0,10);
+              const maxScore=Math.max(...top.map(t=>t.score));
+              const chosen=chosenSSTattico[k];
+              return(
+                <div key={idx} style={{background:"#080816",border:`1px solid ${C.purple}33`,borderRadius:10,padding:12,marginBottom:12}}>
+                  <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:10,flexWrap:"wrap"}}>
+                    <span style={{color:C.dim,fontSize:10}}>#{idx+1}</span>
+                    {r.nums.map(n=><Ball key={n} num={n} color={ACCENT} size={28}/>)}
+                    <span style={{background:`${ACCENT}22`,color:ACCENT,borderRadius:4,padding:"2px 8px",fontSize:10,fontWeight:700,fontFamily:"monospace"}}>Σ{r.sum}</span>
+                  </div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+                    {top.map(t=>{const isCho=chosen===t.num;const pct=Math.round(t.score/Math.max(...top.map(x=>x.score))*100);return(
+                      <div key={t.num} onClick={()=>setChosenSSTattico(prev=>({...prev,[k]:t.num}))} style={{textAlign:"center",cursor:"pointer",padding:"5px 4px",background:isCho?"#FFD70018":"#0e0e1c",border:`2px solid ${isCho?"#FFD700":"#2a2a3a"}`,borderRadius:8,boxShadow:isCho?"0 0 10px #FFD70044":"none"}}>
+                        <Ball num={t.num} size={28} gold={isCho} color={isCho?"#FFD700":"#888"} glow={isCho}/>
+                        <div style={{background:"#0a0a18",borderRadius:2,height:3,overflow:"hidden",margin:"3px 0 1px",width:28}}><div style={{background:isCho?"#FFD700":"#d97706",height:"100%",width:`${pct}%`}}/></div>
+                        <div style={{color:isCho?"#FFD700":"#888",fontSize:9,fontWeight:isCho?700:400}}>{pct}%</div>
+                        <div style={{color:C.dim,fontSize:8}}>r.{t.ritardo}</div>
+                      </div>
+                    );})}
+                  </div>
+                  <div style={{background:chosen?"#FFD70008":C.card,border:`1px solid ${chosen?"#FFD70033":C.border}`,borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                    <span style={{color:C.dim,fontSize:11}}>SuperStar:</span>
+                    {chosen?(<><Ball num={chosen} size={34} gold glow/><span style={{color:"#FFD700",fontWeight:700,fontSize:15,fontFamily:"monospace"}}>{chosen}</span></>):(<span style={{color:"#555",fontSize:11}}>Clicca un numero sopra</span>)}
+                  </div>
+                  {chosen&&(<button onClick={()=>{const t={id:Date.now()+idx,nums:r.nums,superstar:chosen,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:"tattico",sum:r.sum};const prev=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");localStorage.setItem(LS_TICKETS_S,JSON.stringify([...prev,t]));alert(`✅ Linea ${idx+1} salvata!\n${r.nums.join("-")} | SS:${chosen}`);}} style={{width:"100%",padding:"8px",marginTop:8,background:`${C.purple}22`,color:C.purple,border:`2px solid ${C.purple}`,borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva</button>)}
+                </div>
+              );
+            })}
+            <button onClick={()=>{setShowSSTattico(false);}} style={{background:"transparent",color:C.dim,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer"}}>← Torna alla lista</button>
           </div>
-          <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
-            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{r.nums.map(n=><Ball key={n} num={n} color={ACCENT} size={34}/>)}</div>
-            <span style={{color:C.dim}}>│</span>{r.superstar?<Ball num={r.superstar} size={34} gold/>:null}<span style={{color:"#FFD700",fontSize:10}}>SS</span>
-          </div>
-        </div>))}
+        )}
       </div>)}
     </div>
   );
@@ -848,7 +902,6 @@ function TabEstrazioni({onUpdate}){
   return(
     <div>
       <h2 style={{color:C.green,fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>📥 Inserimento Nuove Estrazioni</h2>
-         
       <div style={{background:`${C.teal}11`,border:`1px solid ${C.teal}33`,borderRadius:10,padding:"8px 12px",marginBottom:12,fontSize:11}}>
         <span style={{color:C.teal}}>🔗 Database Supabase collegato — </span>
         <span style={{color:C.dim}}>le nuove estrazioni vengono salvate nel DB e sono disponibili a tutti</span>
