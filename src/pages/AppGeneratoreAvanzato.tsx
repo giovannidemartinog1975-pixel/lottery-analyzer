@@ -47,14 +47,14 @@ function generateFiltered(
 ) {
   const {minSum,maxSum,parity,dec,minFreq,maxRit}=filters;
   const result:Combo[]=[];
-  let scanned=0, i1=1;
+  let scanned=0;
   let parEv=-1, parOd=-1;
   if(parity!=="any") [parEv,parOd]=parity.split("-").map(Number);
 
   function passes(nums:number[]):boolean {
     const ev=nums.filter(n=>n%2===0).length;
     if(parEv>=0&&(ev!==parEv||(PICK-ev)!==parOd)) return false;
-    if(dec.size>0) for(const [idx,cnt] of dec) { if(nums.filter(n=>n>=DECINE[idx].a&&n<=DECINE[idx].b).length!==cnt) return false; }
+    if(dec.size>0) for(const [idx,cnt] of dec){if(nums.filter(n=>n>=DECINE[idx].a&&n<=DECINE[idx].b).length!==cnt)return false;}
     if(minFreq>0&&st&&nums.filter(n=>st.getFreq(n)>=3).length<minFreq) return false;
     if(maxRit>0&&st&&nums.reduce((s,n)=>s+st.getRit(n),0)/PICK>maxRit) return false;
     return true;
@@ -65,36 +65,39 @@ function generateFiltered(
     return {nums,sum:sm(nums),ev,od:PICK-ev,dc:DECINE.map(d=>nums.filter(n=>n>=d.a&&n<=d.b).length),fq:st?nums.reduce((s,n)=>s+st.getFreq(n),0):0,ar:st?nums.reduce((s,n)=>s+st.getRit(n),0)/PICK:0};
   }
 
+  // Pre-calcola coppie (a,b) valide — chunk uniformi, nessun blocco
+  const pairs:[number,number][]=[];
+  for(let a=1;a<=POOL-4;a++)
+    for(let b=a+1;b<=POOL-3;b++)
+      if(a+b+(b+1)+(b+2)+(b+3)<=maxSum) pairs.push([a,b]);
+
+  const totalPairs=pairs.length;
+  let pairIdx=0;
+
   function processChunk() {
-    // Chunk dinamico: più piccolo verso la fine per non bloccare
-    const progress=(i1-1)/(POOL-PICK+1);
-    const CHUNK=progress>0.9?1:progress>0.7?2:3;
-    const end=Math.min(i1+CHUNK, POOL-PICK+2);
-    for(;i1<end;i1++) {
-      const a=i1;
-      for(let b=a+1;b<=POOL-4;b++){
-        const ab=a+b; if(ab+(b+1)+(b+2)+(b+3)+(b+4)>maxSum) break;
-        for(let c=b+1;c<=POOL-3;c++){
-          const abc=ab+c; if(abc+(c+1)+(c+2)+(c+3)>maxSum) break;
-          for(let d=c+1;d<=POOL-2;d++){
-            const abcd=abc+d; if(abcd+(d+1)+(d+2)>maxSum) break;
-            for(let e=d+1;e<=POOL-1;e++){
-              const abcde=abcd+e; if(abcde+(e+1)>maxSum) break;
-              const fMin=Math.max(e+1,minSum-abcde);
-              const fMax=Math.min(POOL,maxSum-abcde);
-              for(let f=fMin;f<=fMax;f++){
-                scanned++;
-                const nums=[a,b,c,d,e,f];
-                if(passes(nums)) result.push(enrich(nums));
-              }
+    const end=Math.min(pairIdx+5, totalPairs);
+    for(;pairIdx<end;pairIdx++) {
+      const [a,b]=pairs[pairIdx];
+      const ab=a+b;
+      for(let c=b+1;c<=POOL-3;c++){
+        const abc=ab+c; if(abc+(c+1)+(c+2)+(c+3)>maxSum) break;
+        for(let d=c+1;d<=POOL-2;d++){
+          const abcd=abc+d; if(abcd+(d+1)+(d+2)>maxSum) break;
+          for(let e=d+1;e<=POOL-1;e++){
+            const abcde=abcd+e; if(abcde+(e+1)>maxSum) break;
+            const fMin=Math.max(e+1,minSum-abcde);
+            const fMax=Math.min(POOL,maxSum-abcde);
+            for(let f=fMin;f<=fMax;f++){
+              scanned++;
+              if(passes([a,b,c,d,e,f])) result.push(enrich([a,b,c,d,e,f]));
             }
           }
         }
       }
     }
-    const pct=Math.round((i1-1)/(POOL-PICK+1)*100);
+    const pct=Math.round(pairIdx/Math.max(totalPairs,1)*100);
     onProgress(result.length,scanned,pct);
-    if(i1<=POOL-PICK+1) setTimeout(processChunk,0);
+    if(pairIdx<totalPairs) setTimeout(processChunk,0);
     else onDone(result,scanned);
   }
   setTimeout(processChunk,0);
