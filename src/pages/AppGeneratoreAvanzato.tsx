@@ -22,28 +22,22 @@ const DECINE = [
   {l:"80–90",a:80, b:90},
 ];
 const DC = ["#E8B84B","#F07030","#C94040","#8A5CC4","#4A8FD4","#2BA89A","#4A9E5C","#d97706","#E8B84B"];
-// Nessun limite — i filtri garantiscono un numero ragionevole di risultati // max sestine da tenere in memoria
-
 const sm = (a: number[]) => a.reduce((s,v)=>s+v,0);
 
 interface Draw { nums: number[]; superstar?: number; }
 interface Combo { nums: number[]; sum: number; ev: number; od: number; dc: number[]; fq: number; ar: number; }
-interface Filters {
-  minSum: number; maxSum: number;
-  parity: string;
-  dec: Map<number,number>;
-  minFreq: number;
-  maxRit: number;
-}
+interface Filters { minSum:number; maxSum:number; parity:string; dec:Map<number,number>; minFreq:number; maxRit:number; }
 
 function buildStats(draws: Draw[]) {
   const freq: Record<number,number> = {};
   const last: Record<number,number> = {};
   draws.forEach((d,i) => d.nums.forEach(n => { freq[n]=(freq[n]||0)+1; last[n]=i; }));
   const total = draws.length;
-  const getRit = (n:number) => total - 1 - (last[n]??-1);
-  const getFreq = (n:number) => freq[n]||0;
-  return { freq, last, total, getRit, getFreq };
+  return {
+    total,
+    getRit: (n:number) => total - 1 - (last[n]??-1),
+    getFreq: (n:number) => freq[n]||0,
+  };
 }
 
 function Ball({ num, color=ACCENT, size=28, glow=false, gold=false }: { num:number|string, color?:string, size?:number, glow?:boolean, gold?:boolean }) {
@@ -51,7 +45,7 @@ function Ball({ num, color=ACCENT, size=28, glow=false, gold=false }: { num:numb
     <div style={{
       width:size, height:size, borderRadius:"50%", flexShrink:0,
       background: gold ? "radial-gradient(circle at 35% 32%,#FFD700,#FF6B35)" : `radial-gradient(circle at 35% 32%,${color}99,${color}22)`,
-      border: `2px solid ${gold?"#FFD700":color}`,
+      border:`2px solid ${gold?"#FFD700":color}`,
       display:"flex", alignItems:"center", justifyContent:"center",
       fontSize: size>38?14:size>28?11:9, fontWeight:900,
       color: gold?"#0a0a0a":"#fff", fontFamily:"monospace",
@@ -70,7 +64,7 @@ function KpiCard({ label, value, color=ACCENT, sub }: { label:string, value:stri
   );
 }
 
-function getSuperstarTop(nums: number[], draws: Draw[], n=12): Array<{ss:number,pct:number,rit:number}> {
+function getSuperstarTop(nums: number[], draws: Draw[], n=12) {
   const ts = sm(nums);
   const total = draws.length;
   const scores = Array.from({length:90},(_,i)=>i+1).map(ss => {
@@ -86,10 +80,9 @@ function getSuperstarTop(nums: number[], draws: Draw[], n=12): Array<{ss:number,
   return scores.sort((a,b)=>b.score-a.score).slice(0,n).map(s=>({ss:s.ss,pct:Math.round(s.score/maxSc*100),rit:s.rit}));
 }
 
-// Generazione con filtri applicati IN LINEA durante la generazione
 function generateFiltered(
   filters: Filters,
-  statsRef: ReturnType<typeof buildStats> | null,
+  st: ReturnType<typeof buildStats> | null,
   onProgress: (found:number, scanned:number, pct:number) => void,
   onDone: (combs: Combo[], scanned: number) => void
 ) {
@@ -98,31 +91,22 @@ function generateFiltered(
   let scanned = 0;
   let i1 = 1;
   const CHUNK = 1;
-
-  // Prepara filtri parity
   let parEv = -1, parOd = -1;
-  if (parity !== "any") {
-    [parEv, parOd] = parity.split("-").map(Number);
-  }
+  if (parity !== "any") [parEv, parOd] = parity.split("-").map(Number);
 
-  function passesFilters(nums: number[]): boolean {
-    const s = sm(nums);
-    if (s < minSum || s > maxSum) return false;
+  function passes(nums: number[]): boolean {
     const ev = nums.filter(n=>n%2===0).length;
     if (parEv>=0 && (ev!==parEv || (PICK-ev)!==parOd)) return false;
     if (dec.size > 0) {
       for (const [idx,cnt] of dec) {
-        const c = nums.filter(n=>n>=DECINE[idx].a&&n<=DECINE[idx].b).length;
-        if (c !== cnt) return false;
+        if (nums.filter(n=>n>=DECINE[idx].a&&n<=DECINE[idx].b).length !== cnt) return false;
       }
     }
-    if (minFreq > 0 && statsRef) {
-      const hot = nums.filter(n=>statsRef.getFreq(n)>=3).length;
-      if (hot < minFreq) return false;
+    if (minFreq > 0 && st) {
+      if (nums.filter(n=>st.getFreq(n)>=3).length < minFreq) return false;
     }
-    if (maxRit > 0 && statsRef) {
-      const ar = nums.reduce((s,n)=>s+statsRef.getRit(n),0)/PICK;
-      if (ar > maxRit) return false;
+    if (maxRit > 0 && st) {
+      if (nums.reduce((s,n)=>s+st.getRit(n),0)/PICK > maxRit) return false;
     }
     return true;
   }
@@ -132,8 +116,8 @@ function generateFiltered(
     return {
       nums, sum:sm(nums), ev, od:PICK-ev,
       dc: DECINE.map(d=>nums.filter(n=>n>=d.a&&n<=d.b).length),
-      fq: statsRef ? nums.reduce((s,n)=>s+statsRef.getFreq(n),0) : 0,
-      ar: statsRef ? nums.reduce((s,n)=>s+statsRef.getRit(n),0)/PICK : 0,
+      fq: st ? nums.reduce((s,n)=>s+st.getFreq(n),0) : 0,
+      ar: st ? nums.reduce((s,n)=>s+st.getRit(n),0)/PICK : 0,
     };
   }
 
@@ -141,40 +125,29 @@ function generateFiltered(
     const end = Math.min(i1 + CHUNK, POOL - PICK + 2);
     for (; i1 < end; i1++) {
       const a = i1;
-      for (let b = a+1; b <= POOL-4; b++) {
-        const ab = a+b;
-        if (ab+(b+1)+(b+2)+(b+3)+(b+4) > maxSum) break;
-        for (let c = b+1; c <= POOL-3; c++) {
-          const abc = ab+c;
-          if (abc+(c+1)+(c+2)+(c+3) > maxSum) break;
-          for (let d = c+1; d <= POOL-2; d++) {
-            const abcd = abc+d;
-            if (abcd+(d+1)+(d+2) > maxSum) break;
-            for (let e = d+1; e <= POOL-1; e++) {
-              const abcde = abcd+e;
-              if (abcde+(e+1) > maxSum) break;
-              const fMin = Math.max(e+1, minSum-abcde);
-              const fMax = Math.min(POOL, maxSum-abcde);
-              for (let f = fMin; f <= fMax; f++) {
+      for (let b=a+1; b<=POOL-4; b++) {
+        const ab=a+b; if(ab+(b+1)+(b+2)+(b+3)+(b+4)>maxSum) break;
+        for (let c=b+1; c<=POOL-3; c++) {
+          const abc=ab+c; if(abc+(c+1)+(c+2)+(c+3)>maxSum) break;
+          for (let d=c+1; d<=POOL-2; d++) {
+            const abcd=abc+d; if(abcd+(d+1)+(d+2)>maxSum) break;
+            for (let e=d+1; e<=POOL-1; e++) {
+              const abcde=abcd+e; if(abcde+(e+1)>maxSum) break;
+              const fMin=Math.max(e+1,minSum-abcde);
+              const fMax=Math.min(POOL,maxSum-abcde);
+              for (let f=fMin; f<=fMax; f++) {
                 scanned++;
-                const nums = [a,b,c,d,e,f];
-                if (passesFilters(nums)) {
-                  result.push(enrich(nums));
-                  
-                }
+                const nums=[a,b,c,d,e,f];
+                if (passes(nums)) result.push(enrich(nums));
               }
-              
             }
-            
           }
-          
         }
-        
       }
     }
     const pct = Math.round((i1-1)/(POOL-PICK+1)*100);
     onProgress(result.length, scanned, pct);
-    if (i1 <= POOL-PICK+1 ) {
+    if (i1 <= POOL-PICK+1) {
       setTimeout(processChunk, 0);
     } else {
       onDone(result, scanned);
@@ -204,8 +177,9 @@ export default function AppGeneratoreAvanzato() {
   }, []);
 
   const stats = useMemo(() => draws.length>0 ? buildStats(draws) : null, [draws]);
+  const statsRef = useRef(stats);
+  useEffect(() => { statsRef.current = stats; }, [stats]);
 
-  // Fase 1 — Filtri (impostati PRIMA della generazione)
   const [minSum, setMinSum] = useState(258);
   const [maxSum, setMaxSum] = useState(262);
   const [fParity, setFParity] = useState("any");
@@ -213,8 +187,6 @@ export default function AppGeneratoreAvanzato() {
   const [fMinFreq, setFMinFreq] = useState(0);
   const [fMaxRit, setFMaxRit] = useState(0);
   const [fSort, setFSort] = useState<"sum"|"freq"|"rit">("sum");
-
-  // Fase 2 — Risultati
   const [phase, setPhase] = useState<1|2|3>(1);
   const [results, setResults] = useState<Combo[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -222,68 +194,35 @@ export default function AppGeneratoreAvanzato() {
   const [genFound, setGenFound] = useState(0);
   const [genScanned, setGenScanned] = useState(0);
   const [genMs, setGenMs] = useState(0);
-  
-
-  // Fase 3 — Selezione + SuperStar
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [chosenSS, setChosenSS] = useState<Record<string,number>>({});
-
   const genRef = useRef(0);
-  const statsRef = useRef(stats);
-  useEffect(() => { statsRef.current = stats; }, [stats]);
 
   const quickRanges = [
-    {l:"258–262", lo:258, hi:262},
-    {l:"255–265", lo:255, hi:265},
-    {l:"250–270", lo:250, hi:270},
-    {l:"240–280", lo:240, hi:280},
-    {l:"270–280", lo:270, hi:280},
-    {l:"300–310", lo:300, hi:310},
+    {l:"258–262",lo:258,hi:262},{l:"255–265",lo:255,hi:265},
+    {l:"250–270",lo:250,hi:270},{l:"240–280",lo:240,hi:280},
+    {l:"270–280",lo:270,hi:280},{l:"300–310",lo:300,hi:310},
   ];
 
   const genera = useCallback(() => {
     if (maxSum < minSum) return;
     const t0 = Date.now();
-    setGenerating(true);
-    setGenPct(0);
-    setGenFound(0);
-    setGenScanned(0);
-    setResults([]);
-    setSelected(new Set());
-    setChosenSS({});
-    setCappedAt(false);
+    setGenerating(true); setGenPct(0); setGenFound(0); setGenScanned(0);
+    setResults([]); setSelected(new Set()); setChosenSS({});
     genRef.current++;
     const myGen = genRef.current;
-
-    const filters: Filters = {
-      minSum, maxSum, parity: fParity,
-      dec: new Map(fDec),
-      minFreq: fMinFreq,
-      maxRit: fMaxRit,
-    };
-
+    const filters: Filters = { minSum, maxSum, parity:fParity, dec:new Map(fDec), minFreq:fMinFreq, maxRit:fMaxRit };
     generateFiltered(
-      filters,
-      statsRef.current,
-      (found, scanned, pct) => {
-        if (genRef.current !== myGen) return;
-        setGenFound(found);
-        setGenScanned(scanned);
-        setGenPct(pct);
-      },
+      filters, statsRef.current,
+      (found, scanned, pct) => { if(genRef.current!==myGen)return; setGenFound(found); setGenScanned(scanned); setGenPct(pct); },
       (combs, scanned) => {
-        if (genRef.current !== myGen) return;
-        // Ordina
-        let sorted = [...combs];
-        if (fSort==="freq") sorted.sort((a,b)=>b.fq-a.fq);
-        else if (fSort==="rit") sorted.sort((a,b)=>a.ar-b.ar);
+        if (genRef.current!==myGen) return;
+        let sorted=[...combs];
+        if(fSort==="freq") sorted.sort((a,b)=>b.fq-a.fq);
+        else if(fSort==="rit") sorted.sort((a,b)=>a.ar-b.ar);
         else sorted.sort((a,b)=>a.sum-b.sum);
-        setResults(sorted);
-        setGenScanned(scanned);
-        setGenMs(Date.now()-t0);
-        
-        setGenerating(false);
-        setPhase(2);
+        setResults(sorted); setGenScanned(scanned); setGenMs(Date.now()-t0);
+        setGenerating(false); setPhase(2);
       }
     );
   }, [minSum, maxSum, fParity, fDec, fMinFreq, fMaxRit, fSort]);
@@ -291,9 +230,8 @@ export default function AppGeneratoreAvanzato() {
   const toggleDec = (idx:number, delta:number) => {
     setFDec(prev => {
       const next = new Map(prev);
-      const cur = next.get(idx)||0;
-      const nv = Math.max(0, Math.min(cur+delta, PICK));
-      if (nv===0) next.delete(idx); else next.set(idx,nv);
+      const nv = Math.max(0, Math.min((next.get(idx)||0)+delta, PICK));
+      if(nv===0) next.delete(idx); else next.set(idx,nv);
       return next;
     });
   };
@@ -301,14 +239,14 @@ export default function AppGeneratoreAvanzato() {
   const toggleSelect = (key:string) => {
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else if (next.size < 10) next.add(key);
+      if(next.has(key)) next.delete(key);
+      else if(next.size<10) next.add(key);
       return next;
     });
   };
 
   const phase3Combos = useMemo(() =>
-    [...selected].map(k => results.find(c=>c.nums.join(",")===k)).filter(Boolean) as Combo[],
+    [...selected].map(k=>results.find(c=>c.nums.join(",")===k)).filter(Boolean) as Combo[],
   [selected, results]);
 
   if (loadingDraws) return (
@@ -322,25 +260,17 @@ export default function AppGeneratoreAvanzato() {
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Courier New',monospace",color:C.text,paddingBottom:80}}>
       <div style={{maxWidth:820,margin:"0 auto",padding:"0 12px"}}>
 
-        {/* HEADER */}
         <div style={{textAlign:"center",padding:"20px 0 14px"}}>
           <div style={{display:"inline-flex",alignItems:"center",gap:10,marginBottom:6}}>
             <span style={{fontSize:26}}>🎯</span>
             <h1 style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:22,margin:0}}>Generatore Avanzato</h1>
             <span style={{background:`${ACCENT}22`,border:`1px solid ${ACCENT}44`,borderRadius:20,padding:"2px 10px",color:ACCENT,fontSize:10,fontWeight:700}}>SuperEnalotto</span>
           </div>
-          <div style={{color:C.dim,fontSize:11,marginBottom:14}}>
-            Imposta i filtri → Genera → Seleziona → SuperStar
-          </div>
+          <div style={{color:C.dim,fontSize:11,marginBottom:14}}>Imposta filtri → Genera → Seleziona → SuperStar</div>
           <div style={{display:"flex",justifyContent:"center",gap:6,flexWrap:"wrap"}}>
             {[{n:1,l:"Filtri & Range"},{n:2,l:"Lista"},{n:3,l:"SuperStar"}].map(f=>(
               <React.Fragment key={f.n}>
-                <div style={{
-                  background: phase===f.n?`linear-gradient(135deg,${ACCENT},${C.teal})`:phase>f.n?`${C.green}33`:`${C.border}`,
-                  color: phase===f.n?"#000":phase>f.n?C.green:C.dim,
-                  borderRadius:20,padding:"4px 14px",fontSize:10,fontWeight:phase===f.n?700:400,
-                  border:`1px solid ${phase===f.n?ACCENT:phase>f.n?C.green:C.border}`,
-                }}>
+                <div style={{background:phase===f.n?`linear-gradient(135deg,${ACCENT},${C.teal})`:phase>f.n?`${C.green}33`:C.border,color:phase===f.n?"#000":phase>f.n?C.green:C.dim,borderRadius:20,padding:"4px 14px",fontSize:10,fontWeight:phase===f.n?700:400,border:`1px solid ${phase===f.n?ACCENT:phase>f.n?C.green:C.border}`}}>
                   {phase>f.n?"✓ ":""}{f.n}. {f.l}
                 </div>
                 {f.n<3&&<span style={{color:C.dim,alignSelf:"center",fontSize:12}}>→</span>}
@@ -354,28 +284,21 @@ export default function AppGeneratoreAvanzato() {
             <KpiCard label="Estrazioni" value={draws.length} sub="da Supabase"/>
             <KpiCard label="μ reale" value={(draws.reduce((s,d)=>s+sm(d.nums),0)/draws.length).toFixed(1)} color={C.orange}/>
             <KpiCard label="Pool" value={`1–${POOL}`} color={C.teal}/>
-            
+            <KpiCard label="Pick" value={PICK} color={C.purple}/>
           </div>
         )}
 
-        {/* ═══ FASE 1 — FILTRI + RANGE ═══ */}
+        {/* FASE 1 */}
         <div style={{background:C.card,border:`1px solid ${phase===1?`${ACCENT}66`:C.border}`,borderRadius:12,padding:16,marginBottom:14}}>
           <div style={{color:ACCENT,fontWeight:700,fontSize:14,marginBottom:4}}>⚙️ Fase 1 — Imposta Filtri e Genera</div>
-          <div style={{color:C.dim,fontSize:11,marginBottom:14}}>
-            I filtri vengono applicati <strong style={{color:ACCENT}}>durante</strong> la generazione — solo le sestine valide entrano in memoria.
-          </div>
+          <div style={{color:C.dim,fontSize:11,marginBottom:14}}>I filtri vengono applicati <strong style={{color:ACCENT}}>durante</strong> la generazione — solo le sestine valide entrano in memoria.</div>
 
-          {/* Range somma */}
+          {/* Range */}
           <div style={{background:"#080816",borderRadius:8,padding:12,marginBottom:12,border:`1px solid ${C.border}`}}>
             <div style={{color:ACCENT,fontSize:12,fontWeight:700,marginBottom:8}}>📊 Range Somma</div>
             <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
               {quickRanges.map(r=>(
-                <button key={r.l} onClick={()=>{setMinSum(r.lo);setMaxSum(r.hi);}} style={{
-                  background:minSum===r.lo&&maxSum===r.hi?`${ACCENT}22`:"#0a0a18",
-                  color:minSum===r.lo&&maxSum===r.hi?ACCENT:C.dim,
-                  border:`1px solid ${minSum===r.lo&&maxSum===r.hi?ACCENT:C.border}`,
-                  borderRadius:8,padding:"5px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit",textAlign:"center",
-                }}>
+                <button key={r.l} onClick={()=>{setMinSum(r.lo);setMaxSum(r.hi);}} style={{background:minSum===r.lo&&maxSum===r.hi?`${ACCENT}22`:"#0a0a18",color:minSum===r.lo&&maxSum===r.hi?ACCENT:C.dim,border:`1px solid ${minSum===r.lo&&maxSum===r.hi?ACCENT:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
                   <div style={{fontWeight:700}}>{r.l}</div>
                   <div style={{fontSize:9,color:C.teal}}>Δ={r.hi-r.lo}</div>
                 </button>
@@ -386,8 +309,7 @@ export default function AppGeneratoreAvanzato() {
                 <div key={f.l}>
                   <div style={{color:C.dim,fontSize:10,marginBottom:4}}>{f.l}</div>
                   <input type="range" min={21} max={534} value={f.v} onChange={e=>f.set(+e.target.value)} style={{width:"100%",accentColor:ACCENT,marginBottom:4}}/>
-                  <input type="number" min={21} max={534} value={f.v} onChange={e=>f.set(Math.max(21,Math.min(534,+e.target.value)))}
-                    style={{width:"100%",background:"#0a0a18",color:ACCENT,border:`1px solid ${ACCENT}55`,borderRadius:8,padding:"7px",fontSize:16,fontFamily:"monospace",fontWeight:700,outline:"none",textAlign:"center"}}/>
+                  <input type="number" min={21} max={534} value={f.v} onChange={e=>f.set(Math.max(21,Math.min(534,+e.target.value)))} style={{width:"100%",background:"#0a0a18",color:ACCENT,border:`1px solid ${ACCENT}55`,borderRadius:8,padding:"7px",fontSize:16,fontFamily:"monospace",fontWeight:700,outline:"none",textAlign:"center"}}/>
                 </div>
               ))}
             </div>
@@ -405,15 +327,11 @@ export default function AppGeneratoreAvanzato() {
           <div style={{background:"#080816",borderRadius:8,padding:12,marginBottom:12,border:`1px solid ${C.border}`}}>
             <div style={{color:ACCENT,fontSize:12,fontWeight:700,marginBottom:8}}>☯️ Pari / Dispari</div>
             <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-              {["any","3-3","4-2","2-4","5-1","1-5","6-0","0-6"].map(v=>{
-                const l=v==="any"?"Qualsiasi":v.replace("-","P–")+"D";
-                return(
-                  <button key={v} onClick={()=>setFParity(v)} style={{
-                    background:fParity===v?`${ACCENT}22`:"transparent",color:fParity===v?ACCENT:C.dim,
-                    border:`1px solid ${fParity===v?ACCENT:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit",
-                  }}>{l}</button>
-                );
-              })}
+              {["any","3-3","4-2","2-4","5-1","1-5","6-0","0-6"].map(v=>(
+                <button key={v} onClick={()=>setFParity(v)} style={{background:fParity===v?`${ACCENT}22`:"transparent",color:fParity===v?ACCENT:C.dim,border:`1px solid ${fParity===v?ACCENT:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>
+                  {v==="any"?"Qualsiasi":v.replace("-","P–")+"D"}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -423,10 +341,10 @@ export default function AppGeneratoreAvanzato() {
               <span style={{color:ACCENT,fontSize:12,fontWeight:700}}>🔢 Decine</span>
               <button onClick={()=>setFDec(new Map())} style={{background:"transparent",color:C.dim,border:`1px solid ${C.border}`,borderRadius:5,padding:"2px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Reset</button>
             </div>
-            <div style={{color:C.dim,fontSize:10,marginBottom:8}}>Imposta quanti numeri vuoi da ciascuna decina (0 = nessun vincolo)</div>
+            <div style={{color:C.dim,fontSize:10,marginBottom:8}}>Quanti numeri vuoi da ciascuna decina (0 = nessun vincolo)</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:4}}>
               {DECINE.map((d,i)=>{
-                const cnt = fDec.get(i)||0;
+                const cnt=fDec.get(i)||0;
                 return(
                   <div key={d.l} style={{background:cnt>0?`${DC[i]}18`:"#0a0a18",border:`2px solid ${cnt>0?DC[i]:C.border}`,borderRadius:8,padding:"5px 3px",textAlign:"center"}}>
                     <div style={{color:DC[i],fontSize:8,fontWeight:700}}>{d.l}</div>
@@ -448,10 +366,7 @@ export default function AppGeneratoreAvanzato() {
                 <div style={{color:C.orange,fontSize:11,fontWeight:700,marginBottom:6}}>🔥 Min numeri frequenti (≥3x)</div>
                 <div style={{display:"flex",gap:4}}>
                   {[0,1,2,3,4].map(n=>(
-                    <button key={n} onClick={()=>setFMinFreq(n)} style={{
-                      flex:1,background:fMinFreq===n?`${C.orange}22`:"transparent",color:fMinFreq===n?C.orange:C.dim,
-                      border:`1px solid ${fMinFreq===n?C.orange:C.border}`,borderRadius:6,padding:"5px 2px",fontSize:10,cursor:"pointer",fontFamily:"inherit",
-                    }}>{n===0?"—":`${n}+`}</button>
+                    <button key={n} onClick={()=>setFMinFreq(n)} style={{flex:1,background:fMinFreq===n?`${C.orange}22`:"transparent",color:fMinFreq===n?C.orange:C.dim,border:`1px solid ${fMinFreq===n?C.orange:C.border}`,borderRadius:6,padding:"5px 2px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{n===0?"—":`${n}+`}</button>
                   ))}
                 </div>
               </div>
@@ -459,10 +374,7 @@ export default function AppGeneratoreAvanzato() {
                 <div style={{color:C.teal,fontSize:11,fontWeight:700,marginBottom:6}}>❄️ Max ritardo medio</div>
                 <div style={{display:"flex",gap:4}}>
                   {[{v:0,l:"—"},{v:20,l:"≤20"},{v:30,l:"≤30"},{v:50,l:"≤50"},{v:70,l:"≤70"}].map(x=>(
-                    <button key={x.v} onClick={()=>setFMaxRit(x.v)} style={{
-                      flex:1,background:fMaxRit===x.v?`${C.teal}22`:"transparent",color:fMaxRit===x.v?C.teal:C.dim,
-                      border:`1px solid ${fMaxRit===x.v?C.teal:C.border}`,borderRadius:6,padding:"5px 2px",fontSize:10,cursor:"pointer",fontFamily:"inherit",
-                    }}>{x.l}</button>
+                    <button key={x.v} onClick={()=>setFMaxRit(x.v)} style={{flex:1,background:fMaxRit===x.v?`${C.teal}22`:"transparent",color:fMaxRit===x.v?C.teal:C.dim,border:`1px solid ${fMaxRit===x.v?C.teal:C.border}`,borderRadius:6,padding:"5px 2px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{x.l}</button>
                   ))}
                 </div>
               </div>
@@ -473,10 +385,7 @@ export default function AppGeneratoreAvanzato() {
           <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
             <span style={{color:C.dim,fontSize:11}}>Ordina per:</span>
             {[{v:"sum",l:"Somma"},{v:"freq",l:"Frequenza"},{v:"rit",l:"Ritardo"}].map(x=>(
-              <button key={x.v} onClick={()=>setFSort(x.v as any)} style={{
-                background:fSort===x.v?`${ACCENT}22`:"transparent",color:fSort===x.v?ACCENT:C.dim,
-                border:`1px solid ${fSort===x.v?ACCENT:C.border}`,borderRadius:8,padding:"5px 12px",fontSize:10,cursor:"pointer",fontFamily:"inherit",
-              }}>{x.l}</button>
+              <button key={x.v} onClick={()=>setFSort(x.v as any)} style={{background:fSort===x.v?`${ACCENT}22`:"transparent",color:fSort===x.v?ACCENT:C.dim,border:`1px solid ${fSort===x.v?ACCENT:C.border}`,borderRadius:8,padding:"5px 12px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{x.l}</button>
             ))}
           </div>
 
@@ -486,23 +395,16 @@ export default function AppGeneratoreAvanzato() {
               <div style={{background:"#0a0a18",borderRadius:4,height:8,overflow:"hidden",marginBottom:4}}>
                 <div style={{background:`linear-gradient(90deg,${ACCENT},${C.teal})`,height:"100%",width:`${genPct}%`,transition:"width 0.1s"}}/>
               </div>
-              <div style={{color:C.dim,fontSize:11,textAlign:"center"}}>
-                {genPct}% — trovate {genFound.toLocaleString("it-IT")} su {genScanned.toLocaleString("it-IT")} scansionate
-              </div>
+              <div style={{color:C.dim,fontSize:11,textAlign:"center"}}>{genPct}% — trovate {genFound.toLocaleString("it-IT")} su {genScanned.toLocaleString("it-IT")} scansionate</div>
             </div>
           )}
 
-          <button onClick={genera} disabled={generating||maxSum<minSum} style={{
-            width:"100%",padding:"14px",
-            background:generating?"#1a1a2e":`linear-gradient(135deg,${ACCENT},${C.teal})`,
-            color:generating?"#555":"#000",border:"none",borderRadius:10,
-            fontSize:16,fontWeight:900,cursor:generating?"not-allowed":"pointer",fontFamily:"Georgia,serif",
-          }}>
+          <button onClick={genera} disabled={generating||maxSum<minSum} style={{width:"100%",padding:"14px",background:generating?"#1a1a2e":`linear-gradient(135deg,${ACCENT},${C.teal})`,color:generating?"#555":"#000",border:"none",borderRadius:10,fontSize:16,fontWeight:900,cursor:generating?"not-allowed":"pointer",fontFamily:"Georgia,serif"}}>
             {generating?`⏳ Generazione... ${genPct}%`:"⚡ GENERA CON QUESTI FILTRI"}
           </button>
         </div>
 
-        {/* ═══ FASE 2 — LISTA ═══ */}
+        {/* FASE 2 */}
         {phase>=2&&(
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:8}}>
@@ -511,47 +413,21 @@ export default function AppGeneratoreAvanzato() {
                 <span style={{color:C.dim,fontSize:11}}> su {genScanned.toLocaleString("it-IT")} scansionate in {genMs}ms</span>
               </div>
               {selected.size>0&&(
-                <button onClick={()=>setPhase(3)} style={{
-                  background:`linear-gradient(135deg,${C.purple},${C.teal})`,color:"#fff",
-                  border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-                }}>⭐ SuperStar ({selected.size})</button>
+                <button onClick={()=>setPhase(3)} style={{background:`linear-gradient(135deg,${C.purple},${C.teal})`,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⭐ SuperStar ({selected.size})</button>
               )}
             </div>
-
-             raggiunto — aggiungi filtri per ridurre ulteriormente.
-              </div>
-            )}
-
-            <div style={{color:C.dim,fontSize:10,marginBottom:8}}>
-              Clicca per selezionare (max 10) · <span style={{color:C.orange}}>●</span> frequente · <span style={{color:C.teal}}>●</span> ritardatario
-            </div>
-
+            <div style={{color:C.dim,fontSize:10,marginBottom:8}}>Clicca per selezionare (max 10) · <span style={{color:C.orange}}>●</span> frequente · <span style={{color:C.teal}}>●</span> ritardatario</div>
             {results.length===0?(
-              <div style={{textAlign:"center",color:C.dim,padding:"30px 0"}}>
-                Nessuna sestina trovata con questi filtri. Allarga i criteri e rigenera.
-              </div>
+              <div style={{textAlign:"center",color:C.dim,padding:"30px 0"}}>Nessuna sestina trovata. Allarga i criteri e rigenera.</div>
             ):(
               <div style={{maxHeight:500,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
                 {results.map((c,i)=>{
-                  const k = c.nums.join(",");
-                  const isSel = selected.has(k);
+                  const k=c.nums.join(","); const isSel=selected.has(k);
                   return(
-                    <div key={i} onClick={()=>toggleSelect(k)} style={{
-                      background:isSel?`${ACCENT}12`:"#080816",
-                      border:`2px solid ${isSel?ACCENT:C.border}`,
-                      borderRadius:8,padding:"7px 10px",cursor:"pointer",
-                      display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",
-                    }}>
-                      <div style={{width:16,height:16,borderRadius:3,border:`2px solid ${isSel?ACCENT:C.dim}`,background:isSel?ACCENT:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#000",fontWeight:900,flexShrink:0}}>
-                        {isSel?"✓":""}
-                      </div>
+                    <div key={i} onClick={()=>toggleSelect(k)} style={{background:isSel?`${ACCENT}12`:"#080816",border:`2px solid ${isSel?ACCENT:C.border}`,borderRadius:8,padding:"7px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                      <div style={{width:16,height:16,borderRadius:3,border:`2px solid ${isSel?ACCENT:C.dim}`,background:isSel?ACCENT:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#000",fontWeight:900,flexShrink:0}}>{isSel?"✓":""}</div>
                       <div style={{display:"flex",gap:3,flex:1,flexWrap:"wrap"}}>
-                        {c.nums.map(n=>{
-                          const isHot=stats?stats.getFreq(n)>=3:false;
-                          const isRit=stats?stats.getRit(n)>20:false;
-                          const col=isHot?C.orange:isRit?C.teal:ACCENT;
-                          return <Ball key={n} num={n} color={col} size={26}/>;
-                        })}
+                        {c.nums.map(n=>{const isHot=stats?stats.getFreq(n)>=3:false;const isRit=stats?stats.getRit(n)>20:false;const col=isHot?C.orange:isRit?C.teal:ACCENT;return <Ball key={n} num={n} color={col} size={26}/>;})}
                       </div>
                       <div style={{display:"flex",gap:4,flexShrink:0,flexWrap:"wrap"}}>
                         <span style={{background:`${ACCENT}22`,color:ACCENT,borderRadius:4,padding:"2px 7px",fontSize:10,fontFamily:"monospace",fontWeight:700}}>Σ{c.sum}</span>
@@ -564,39 +440,26 @@ export default function AppGeneratoreAvanzato() {
                 })}
               </div>
             )}
-
             {selected.size>0&&(
-              <button onClick={()=>setPhase(3)} style={{
-                width:"100%",padding:"12px",marginTop:10,
-                background:`linear-gradient(135deg,${C.purple},${C.teal})`,
-                color:"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:900,
-                cursor:"pointer",fontFamily:"Georgia,serif",
-              }}>
-                ⭐ Scegli SuperStar per {selected.size} sestine selezionate
+              <button onClick={()=>setPhase(3)} style={{width:"100%",padding:"12px",marginTop:10,background:`linear-gradient(135deg,${C.purple},${C.teal})`,color:"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:900,cursor:"pointer",fontFamily:"Georgia,serif"}}>
+                ⭐ Scegli SuperStar per {selected.size} sestine
               </button>
             )}
           </div>
         )}
 
-        {/* ═══ FASE 3 — SUPERSTAR ═══ */}
+        {/* FASE 3 */}
         {phase>=3&&phase3Combos.length>0&&(
           <div>
             <div style={{background:C.card,border:`2px solid ${C.purple}44`,borderRadius:12,padding:16,marginBottom:14}}>
               <div style={{color:C.purple,fontWeight:700,fontSize:14,marginBottom:14}}>⭐ Fase 3 — Scegli il SuperStar</div>
               {phase3Combos.map((c,idx)=>{
-                const k = c.nums.join(",");
-                const top = draws.length>0 ? getSuperstarTop(c.nums, draws) : [];
-                const chosen = chosenSS[k];
+                const k=c.nums.join(","); const top=draws.length>0?getSuperstarTop(c.nums,draws):[]; const chosen=chosenSS[k];
                 return(
                   <div key={idx} style={{background:"#080816",border:`1px solid ${C.purple}33`,borderRadius:10,padding:12,marginBottom:12}}>
                     <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:10,flexWrap:"wrap"}}>
                       <span style={{color:C.dim,fontSize:10}}>#{idx+1}</span>
-                      {c.nums.map(n=>{
-                        const isHot=stats?stats.getFreq(n)>=3:false;
-                        const isRit=stats?stats.getRit(n)>20:false;
-                        const col=isHot?C.orange:isRit?C.teal:ACCENT;
-                        return <Ball key={n} num={n} color={col} size={28}/>;
-                      })}
+                      {c.nums.map(n=>{const isHot=stats?stats.getFreq(n)>=3:false;const isRit=stats?stats.getRit(n)>20:false;const col=isHot?C.orange:isRit?C.teal:ACCENT;return <Ball key={n} num={n} color={col} size={28}/>;})}
                       <span style={{background:`${ACCENT}22`,color:ACCENT,borderRadius:4,padding:"2px 8px",fontSize:10,fontWeight:700,fontFamily:"monospace"}}>Σ{c.sum}</span>
                     </div>
                     {top.length>0&&(
@@ -604,18 +467,11 @@ export default function AppGeneratoreAvanzato() {
                         <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Top 12 SuperStar per affinità:</div>
                         <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
                           {top.map(t=>{
-                            const isCho = chosen===t.ss;
+                            const isCho=chosen===t.ss;
                             return(
-                              <div key={t.ss} onClick={()=>setChosenSS(prev=>({...prev,[k]:t.ss}))} style={{
-                                textAlign:"center",cursor:"pointer",padding:"5px 4px",
-                                background:isCho?"#FFD70018":"#0e0e1c",
-                                border:`2px solid ${isCho?"#FFD700":"#2a2a3a"}`,
-                                borderRadius:8,boxShadow:isCho?"0 0 10px #FFD70044":"none",
-                              }}>
+                              <div key={t.ss} onClick={()=>setChosenSS(prev=>({...prev,[k]:t.ss}))} style={{textAlign:"center",cursor:"pointer",padding:"5px 4px",background:isCho?"#FFD70018":"#0e0e1c",border:`2px solid ${isCho?"#FFD700":"#2a2a3a"}`,borderRadius:8,boxShadow:isCho?"0 0 10px #FFD70044":"none"}}>
                                 <Ball num={t.ss} size={28} gold={isCho} color={isCho?"#FFD700":"#888"} glow={isCho}/>
-                                <div style={{background:"#0a0a18",borderRadius:2,height:3,overflow:"hidden",margin:"3px 0 1px",width:28}}>
-                                  <div style={{background:isCho?"#FFD700":"#d97706",height:"100%",width:`${t.pct}%`}}/>
-                                </div>
+                                <div style={{background:"#0a0a18",borderRadius:2,height:3,overflow:"hidden",margin:"3px 0 1px",width:28}}><div style={{background:isCho?"#FFD700":"#d97706",height:"100%",width:`${t.pct}%`}}/></div>
                                 <div style={{color:isCho?"#FFD700":"#888",fontSize:9,fontWeight:isCho?700:400}}>{t.pct}%</div>
                                 <div style={{color:C.dim,fontSize:8}}>r.{t.rit}</div>
                               </div>
@@ -627,11 +483,7 @@ export default function AppGeneratoreAvanzato() {
                     <div style={{background:chosen?"#FFD70008":C.card,border:`1px solid ${chosen?"#FFD70033":C.border}`,borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                       <span style={{color:C.dim,fontSize:11}}>SuperStar:</span>
                       {chosen?(
-                        <>
-                          <Ball num={chosen} size={36} gold glow/>
-                          <span style={{color:"#FFD700",fontWeight:700,fontSize:16,fontFamily:"monospace"}}>{chosen}</span>
-                          <span style={{color:"#FFD700",fontSize:11}}>Affinità: {top.find(t=>t.ss===chosen)?.pct||0}%</span>
-                        </>
+                        <><Ball num={chosen} size={36} gold glow/><span style={{color:"#FFD700",fontWeight:700,fontSize:16,fontFamily:"monospace"}}>{chosen}</span><span style={{color:"#FFD700",fontSize:11}}>Affinità: {top.find(t=>t.ss===chosen)?.pct||0}%</span></>
                       ):(
                         <span style={{color:"#555",fontSize:11}}>Clicca un numero sopra</span>
                       )}
@@ -640,14 +492,11 @@ export default function AppGeneratoreAvanzato() {
                 );
               })}
             </div>
-
             {Object.values(chosenSS).length>0&&(
               <div style={{background:C.card,border:`1px solid ${ACCENT}33`,borderRadius:12,padding:16}}>
                 <div style={{color:ACCENT,fontWeight:700,fontSize:13,marginBottom:12}}>🎟 Riepilogo Biglietti</div>
                 {phase3Combos.map((c,idx)=>{
-                  const k = c.nums.join(",");
-                  const ss = chosenSS[k];
-                  if (!ss) return null;
+                  const k=c.nums.join(","); const ss=chosenSS[k]; if(!ss) return null;
                   return(
                     <div key={idx} style={{display:"flex",gap:6,alignItems:"center",background:"#080816",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",marginBottom:6,flexWrap:"wrap"}}>
                       <span style={{color:C.dim,fontSize:10,minWidth:20}}>#{idx+1}</span>
