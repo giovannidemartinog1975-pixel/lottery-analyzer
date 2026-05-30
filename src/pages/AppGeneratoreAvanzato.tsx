@@ -90,7 +90,7 @@ function generateFiltered(
   const result: Combo[] = [];
   let scanned = 0;
   let i1 = 1;
-  const CHUNK = 1;
+  const CHUNK = 3;
   let parEv = -1, parOd = -1;
   if (parity !== "any") [parEv, parOd] = parity.split("-").map(Number);
 
