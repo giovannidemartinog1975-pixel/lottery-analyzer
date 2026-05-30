@@ -758,7 +758,7 @@ function TabGeneratore(){
           {(()=>{
             const DECINE_UI=[{label:"1–10",min:1,max:10},{label:"11–20",min:11,max:20},{label:"21–30",min:21,max:30},{label:"31–40",min:31,max:40},{label:"41–50",min:41,max:50},{label:"51–60",min:51,max:60},{label:"61–70",min:61,max:70},{label:"71–80",min:71,max:80},{label:"81–90",min:81,max:90}];
             const DC=["#E8B84B","#F07030","#C94040","#8A5CC4","#4A8FD4","#2BA89A","#4A9E5C","#F07030","#E8B84B"];
-            const medieDec=DECINE_UI.map((d,i)=>({...d,idx:i,media:allDraws.reduce((s,dr)=>s+dr.nums.filter(n=>n>=d.min&&n<=d.max).length,0)/allDraws.length}));
+            const medieDec=DECINE_UI.map((d,i)=>{const tot=allDraws.reduce((s,dr)=>s+dr.nums.filter(n=>n>=d.min&&n<=d.max).length,0);return{...d,idx:i,media:tot/allDraws.length,pct:tot/(allDraws.length*PICK)*100};});
             const maxMedia=Math.max(...medieDec.map(m=>m.media));
             const toggleDec=(idx,delta)=>setDecineAttive(prev=>{const next=new Map(prev);const cur=next.get(idx)||0;const nv=Math.max(0,Math.min(cur+delta,PICK));if(nv===0)next.delete(idx);else next.set(idx,nv);return next;});
             const totRichiesti=[...decineAttive.values()].reduce((a,b)=>a+b,0);
@@ -772,6 +772,7 @@ function TabGeneratore(){
                 {medieDec.map((d,i)=>{const cnt=decineAttive.get(i)||0;return(<div key={d.label} style={{background:cnt>0?`${DC[i]}18`:"#080816",border:`2px solid ${cnt>0?DC[i]:C.border}`,borderRadius:8,padding:"5px 3px",textAlign:"center"}}>
                   <div style={{color:cnt>0?DC[i]:C.dim,fontSize:8,fontWeight:700}}>{d.label}</div>
                   <div style={{background:"#0a0a18",borderRadius:3,height:3,overflow:"hidden",margin:"2px 0"}}><div style={{background:DC[i],height:"100%",width:`${(d.media/Math.max(maxMedia,0.1)*100)}%`}}/></div>
+                  <div style={{color:DC[i],fontSize:8,fontWeight:700,marginBottom:1}}>{d.pct.toFixed(1)}%</div>
                   <div style={{color:cnt>0?DC[i]:"#555",fontSize:13,fontWeight:900,fontFamily:"monospace",margin:"2px 0",minHeight:18}}>{cnt>0?cnt:"–"}</div>
                   <div style={{display:"flex",gap:2,justifyContent:"center"}}>
                     <button onClick={e=>{e.stopPropagation();toggleDec(i,-1);}} style={{width:20,height:20,borderRadius:4,background:cnt>0?"#1a0606":"#1a1a2e",color:cnt>0?"#C94040":"#333",border:`1px solid ${cnt>0?"#C94040":"#333"}`,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
