@@ -853,6 +853,72 @@ function TabGeneratore(){
   );
 }
 
+function TabConfronto(){
+  const allDraws=useDraws();
+  const [userInput,setUserInput]=useState("");
+  const [userNums,setUserNums]=useState([]);
+  const [compared,setCompared]=useState([]);
+  const confronta=()=>{
+    const nums=userInput.split(/[\s,;]+/).map(s=>parseInt(s.trim())).filter(n=>!isNaN(n)&&n>=1&&n<=POOL);
+    if(nums.length!==PICK){alert(`Inserisci esattamente ${PICK} numeri (1–${POOL})`);return;}
+    if([...new Set(nums)].length!==PICK){alert("Numeri duplicati");return;}
+    const sorted=nums.sort((a,b)=>a-b);setUserNums(sorted);
+    const results=allDraws.slice(-50).map(d=>{const matches=d.nums.filter(n=>sorted.includes(n));return{...d,matches,pts:matches.length};}).sort((a,b)=>b.pts-a.pts);
+    setCompared(results);
+  };
+  const userSum=sm(userNums);
+  const zUser=userNums.length===PICK?zOf(userSum,MU_TEO,SIGMA_TEO):null;
+  const D={gold:"#E8B84B",orange:"#F07030",teal:"#2BA89A",red:"#C94040",purple:"#8A5CC4",green:"#4A9E5C",bg:"#07070F",card:"#0D0D1A",border:"#1A1A2E",text:"#E0E0F0",dim:"#6A6A8A"};
+  return(
+    <div>
+      <h2 style={{color:"#D4AF37",fontFamily:"Georgia,serif",fontSize:16,marginBottom:12}}>🔁 Confronto Sestina</h2>
+      <div style={{background:D.card,border:"1px solid #D4AF3733",borderRadius:12,padding:14,marginBottom:14}}>
+        <div style={{color:"#D4AF37",fontWeight:700,fontSize:12,marginBottom:8}}>Inserisci la tua sestina da confrontare</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+          <input type="text" value={userInput} onChange={e=>setUserInput(e.target.value)} placeholder="Es. 7 15 23 38 45 67" style={{flex:1,minWidth:180,background:"#080816",color:"#D4AF37",border:"1px solid #D4AF3755",borderRadius:8,padding:"10px 12px",fontSize:14,fontFamily:"monospace",outline:"none"}}/>
+          <button onClick={confronta} style={{padding:"10px 20px",background:"linear-gradient(135deg,#D4AF37,#2BA89A)",color:"#000",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🔍 Confronta</button>
+        </div>
+        {userNums.length===PICK&&(
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+            {userNums.map(n=><Ball key={n} num={n} color="#D4AF37" size={34} glow/>)}
+            <div style={{display:"flex",gap:8,marginLeft:8,flexWrap:"wrap"}}>
+              <span style={{background:"#D4AF3722",color:"#D4AF37",borderRadius:6,padding:"4px 10px",fontSize:12,fontWeight:700}}>Σ={userSum}</span>
+              <span style={{background:"#2BA89A22",color:"#2BA89A",borderRadius:6,padding:"4px 10px",fontSize:12}}>z={zUser?.toFixed(2)}</span>
+              <span style={{background:"#12122a",color:D.dim,borderRadius:6,padding:"4px 10px",fontSize:12}}>{userNums.filter(n=>n%2===0).length}P–{userNums.filter(n=>n%2!==0).length}D</span>
+            </div>
+          </div>
+        )}
+      </div>
+      {compared.length>0&&(
+        <div>
+          <div style={{color:"#D4AF37",fontWeight:700,fontSize:13,marginBottom:10}}>Ultime 50 estrazioni — ordinato per punti</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {compared.map(r=>{
+              const PCOL={0:"#4A4A6A",1:"#4A4A6A",2:"#4A8FD4",3:"#2BA89A",4:"#E8B84B",5:"#F07030",6:"#C94040"};
+              const col=PCOL[Math.min(r.pts,6)]||D.dim;
+              return(<div key={r.n} style={{background:r.pts>=2?`${col}12`:"#080816",border:`1px solid ${r.pts>=2?col:D.border}`,borderRadius:9,padding:"10px 12px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:4}}>
+                  <span style={{color:D.dim,fontSize:10}}>Est. <strong style={{color:"#D4AF37"}}>#{r.n}</strong> · {r.date?.substring(0,5)||""} · Σ={sm(r.nums)}</span>
+                  <span style={{color:col,fontWeight:700,fontSize:11}}>{r.pts>0?`${r.pts} punt${r.pts===1?"o":"i"}`:"–"}</span>
+                </div>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:4}}>
+                  {r.nums.map(n=>{const hit=userNums.includes(n);return(<div key={n} style={{position:"relative"}}><Ball num={n} color={hit?col:"#2a2a3a"} size={28} glow={hit&&r.pts>=2}/>{hit&&<div style={{position:"absolute",top:-3,right:-3,width:9,height:9,borderRadius:"50%",background:col,border:"1px solid #06060e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:6,color:"#000",fontWeight:900}}>✓</div>}</div>);})}
+                  {r.jolly&&<><span style={{color:D.dim,fontSize:14,alignSelf:"center"}}>│</span><Ball num={r.jolly} color="#aaa" size={26}/><span style={{color:"#aaa",fontSize:8}}>J</span></>}
+                  {r.superstar&&<><Ball num={r.superstar} size={26} gold/><span style={{color:"#FFD700",fontSize:8}}>SS</span></>}
+                </div>
+                {r.matches.length>0&&(<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                  <span style={{color:col,fontSize:10,fontWeight:700}}>✓</span>
+                  {r.matches.map(n=><span key={n} style={{background:`${col}33`,border:`1px solid ${col}`,borderRadius:4,padding:"1px 6px",color:col,fontFamily:"monospace",fontSize:11,fontWeight:700}}>{n}</span>)}
+                </div>)}
+              </div>);
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabEstrazioni({onUpdate}){
   const allDraws=useDraws();
   const [concorso,setConcorso]=useState("");
@@ -998,6 +1064,7 @@ const TABS=[
   {id:"segnali",icon:"🔬",label:"Segnali & Freq."},
   {id:"banda",icon:"📐",label:"Banda Adattiva"},
   {id:"generatore",icon:"🎯",label:"Generatore"},
+  {id:"confronto",icon:"🔁",label:"Confronto"},
   {id:"estrazioni",icon:"📥",label:"Estrazioni"},
   {id:"biglietti",icon:"🎫",label:"Biglietti"},
 ];
@@ -1081,6 +1148,7 @@ export default function App(){
         {tab==="segnali"&&<TabSegnali/>}
         {tab==="banda"&&<TabBanda/>}
         {tab==="generatore"&&<TabGeneratore/>}
+        {tab==="confronto"&&<TabConfronto/>}
         {tab==="estrazioni"&&<TabEstrazioni onUpdate={handleUpdate}/>}
         {tab==="biglietti"&&<TabBiglietti/>}
         <div style={{marginTop:24,background:"#070712",border:"1px solid #111122",borderRadius:10,padding:12}}>
