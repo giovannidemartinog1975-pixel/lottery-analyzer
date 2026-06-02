@@ -573,7 +573,464 @@ function SSAffinitaPanel({allDraws,ticketSum,sigmaRef,currentSS,selSS,setSelSS})
     </div>
   );
 }
+// ═══════════════════════════════════════════════════════════════
+// MOTORE ANALITICO AVANZATO — da inserire dopo SSAffinitaPanel
+// e prima di calcQualityScore
+// ═══════════════════════════════════════════════════════════════
 
+// ─── CATENE DI MARKOV ────────────────────────────────────────
+function getMarkovState(nums: number[]): string {
+  const s = nums.reduce((a,b)=>a+b,0);
+  const e = nums.filter(n=>n%2===0).length;
+  const cat = s < 230 ? 'L' : s > 320 ? 'H' : 'M';
+  const par = e >= 3 ? 'P' : 'D';
+  return cat+par;
+}
+
+function computeMarkov(draws: any[]) {
+  const states = ['LP','LD','MP','MD','HP','HD'];
+  const trans: Record<string,Record<string,number>> = {};
+  states.forEach(s=>{trans[s]={};states.forEach(t=>trans[s][t]=0);});
+  for(let i=1;i<draws.length;i++){
+    const from=getMarkovState(draws[i-1].nums);
+    const to=getMarkovState(draws[i].nums);
+    trans[from][to]++;
+  }
+  const prob: Record<string,Record<string,number>> = {};
+  states.forEach(s=>{
+    const tot=Object.values(trans[s]).reduce((a:number,b:number)=>a+b,0);
+    prob[s]={};
+    states.forEach(t=>prob[s][t]=tot>0?trans[s][t]/tot:0);
+  });
+  const lastState=getMarkovState(draws[draws.length-1].nums);
+  const nextProbs=prob[lastState]||{};
+  const bestNext=Object.entries(nextProbs).sort((a,b)=>(b[1] as number)-(a[1] as number))[0];
+  return {lastState,nextProbs,bestNext,states};
+}
+
+// ─── ANALISI CICLICA ─────────────────────────────────────────
+function analyzeCycles(draws: any[]) {
+  const N=draws.length;
+  return Array.from({length:POOL},(_,i)=>{
+    const num=i+1;
+    const appearances: number[]=[];
+    draws.forEach((d,idx)=>{if(d.nums.includes(num))appearances.push(idx);});
+    if(appearances.length<2) return {num,cycle:N,phase:0,score:0,currentGap:N,lastApp:-1};
+    const gaps=[];
+    for(let j=1;j<appearances.length;j++) gaps.push(appearances[j]-appearances[j-1]);
+    const avgGap=gaps.reduce((a,b)=>a+b,0)/gaps.length;
+    const lastApp=appearances[appearances.length-1];
+    const currentGap=N-1-lastApp;
+    const phase=currentGap/avgGap;
+    const score=Math.min(phase,3)/3;
+    return {num,cycle:parseFloat(avgGap.toFixed(1)),phase:parseFloat(phase.toFixed(2)),score,currentGap,lastApp};
+  });
+}
+
+// ─── K-MEANS CLUSTERING ──────────────────────────────────────
+function getDrawFeatures(nums: number[], muReale: number, sigmaReale: number): number[] {
+  const s=nums.reduce((a,b)=>a+b,0);
+  const e=nums.filter(n=>n%2===0).length;
+  const decades=[0,0,0,0,0,0,0,0,0];
+  nums.forEach(n=>decades[Math.floor((n-1)/10)]++);
+  const maxDec=Math.max(...decades);
+  const gaps=[];
+  for(let i=1;i<nums.length;i++) gaps.push(nums[i]-nums[i-1]);
+  const avgGap=gaps.reduce((a,b)=>a+b,0)/gaps.length;
+  return [
+    (s-muReale)/Math.max(sigmaReale,1),
+    (e-3)/3,
+    maxDec/PICK,
+    (avgGap-15)/15
+  ];
+}
+
+function kmeansCluster(features: number[][], k=4, iterations=15) {
+  let centroids=features.slice(0,k).map(d=>[...d]);
+  let assignments=new Array(features.length).fill(0);
+  for(let iter=0;iter<iterations;iter++){
+    features.forEach((point,i)=>{
+      let minDist=Infinity,best=0;
+      centroids.forEach((c,j)=>{
+        const dist=point.reduce((sum,v,ki)=>sum+(v-c[ki])**2,0);
+        if(dist<minDist){minDist=dist;best=j;}
+      });
+      assignments[i]=best;
+    });
+    centroids=Array.from({length:k},(_,ci)=>{
+      const pts=features.filter((_,i)=>assignments[i]===ci);
+      if(pts.length===0) return centroids[ci];
+      return pts[0].map((_,j)=>pts.reduce((sum,p)=>sum+p[j],0)/pts.length);
+    });
+  }
+  return {assignments,centroids};
+}
+
+function computeClusters(draws: any[], muReale: number, sigmaReale: number) {
+  const features=draws.map(d=>getDrawFeatures(d.nums,muReale,sigmaReale));
+  const {assignments,centroids}=kmeansCluster(features,4);
+  const recent=assignments.slice(-30);
+  const counts=[0,0,0,0];
+  recent.forEach(c=>counts[c]++);
+  const dominant=counts.indexOf(Math.max(...counts));
+  const dc=centroids[dominant];
+  return {
+    assignments,centroids,dominant,counts,
+    domInfo:{
+      sumBias:(dc[0]*sigmaReale+muReale).toFixed(0),
+      evensBias:(dc[1]*3+3).toFixed(1),
+      gapBias:(dc[3]*15+15).toFixed(1),
+    }
+  };
+}
+
+// ─── ENTROPIA LOCALE ─────────────────────────────────────────
+function localEntropy(window: any[]): number {
+  const freq=new Array(POOL+1).fill(0);
+  window.forEach(d=>d.nums.forEach((n:number)=>freq[n]++));
+  const total=window.length*PICK;
+  let H=0;
+  for(let i=1;i<=POOL;i++){
+    const p=freq[i]/total;
+    if(p>0) H-=p*Math.log2(p);
+  }
+  return H/Math.log2(POOL);
+}
+
+function computeEntropyTimeline(draws: any[], windowSize=50) {
+  const timeline=[];
+  for(let i=windowSize;i<=draws.length;i++){
+    timeline.push({
+      idx:i,
+      entropy:localEntropy(draws.slice(i-windowSize,i)),
+      date:draws[i-1]?.date?.substring(0,5)||""
+    });
+  }
+  const vals=timeline.map(t=>t.entropy);
+  const avgE=vals.reduce((a,b)=>a+b,0)/vals.length;
+  const current=vals[vals.length-1]||0;
+  return {timeline,avgEntropy:avgE,currentEntropy:current,isChaotic:current>avgE};
+}
+
+// ─── SCORE BAYESIANO ─────────────────────────────────────────
+function bayesianScore(num: number, draws: any[], windowSize=150): number {
+  const recent=draws.slice(-windowSize);
+  const freq=recent.filter(d=>d.nums.includes(num)).length;
+  const alpha=freq+1;
+  const beta=windowSize-freq+1;
+  const posteriorMean=alpha/(alpha+beta);
+  const expectedProb=PICK/POOL;
+  return Math.max(0,expectedProb-posteriorMean);
+}
+
+// ─── SCORE UNIFICATO AVANZATO ────────────────────────────────
+function computeAdvancedScores(draws: any[], muReale: number, sigmaReale: number) {
+  const N=draws.length;
+  const cycles=analyzeCycles(draws);
+  const clusterData=computeClusters(draws,muReale,sigmaReale);
+  const dominant=clusterData.dominant;
+
+  return Array.from({length:POOL},(_,i)=>{
+    const num=i+1;
+    const cyc=cycles[i];
+
+    // 1. Score ciclico (30%)
+    const cycleScore=cyc.score;
+
+    // 2. Score bayesiano (25%)
+    const bayes=bayesianScore(num,draws);
+    const bayesScore=Math.min(bayes*20,1);
+
+    // 3. Score ritardo (25%)
+    let rit=N;
+    for(let j=N-1;j>=0;j--) if(draws[j].nums.includes(num)){rit=N-1-j;break;}
+    const ritScore=Math.min(rit/N,1);
+
+    // 4. Score frequenza deficit (20%)
+    const freq=draws.filter(d=>d.nums.includes(num)).length;
+    const expected=N*PICK/POOL;
+    const freqScore=Math.max(0,(expected-freq)/Math.max(expected,1));
+
+    const unified=cycleScore*0.30+bayesScore*0.25+ritScore*0.25+freqScore*0.20;
+
+    return {
+      num,
+      unified:parseFloat((unified*100).toFixed(1)),
+      cycleScore:parseFloat((cycleScore*100).toFixed(1)),
+      bayesScore:parseFloat((bayesScore*100).toFixed(1)),
+      ritScore:parseFloat((ritScore*100).toFixed(1)),
+      freqScore:parseFloat((freqScore*100).toFixed(1)),
+      rit,freq,
+      cycle:cyc.cycle,
+      phase:cyc.phase,
+    };
+  }).sort((a,b)=>b.unified-a.unified);
+}
+
+// ─── AGGIORNA calcQualityScore con score avanzato ─────────────
+function calcQualityScoreAdvanced(
+  nums: number[],
+  allDraws: any[],
+  freq: number[],
+  sigmaReale: number,
+  muReale: number,
+  advScores: ReturnType<typeof computeAdvancedScores>
+): number {
+  const s=nums.reduce((a,b)=>a+b,0);
+  const zS=Math.abs((s-muReale)/Math.max(sigmaReale,1));
+
+  // 1. Score somma (25pt)
+  const sumScore=Math.max(0,25-zS*8);
+
+  // 2. Score avanzato medio dei numeri (50pt)
+  const advMean=nums.reduce((acc,n)=>{
+    const a=advScores.find(x=>x.num===n);
+    return acc+(a?a.unified:0);
+  },0)/nums.length;
+  const advScore=(advMean/100)*50;
+
+  // 3. Score anomaly bassa (15pt)
+  const expected=allDraws.length*PICK/POOL;
+  const anomaly=nums.reduce((acc,n)=>acc+Math.abs(freq[n]-expected)/Math.max(expected,1),0)/nums.length;
+  const anomScore=Math.max(0,15-anomaly*15);
+
+  // 4. Score pari/dispari (10pt)
+  const evens=nums.filter(n=>n%2===0).length;
+  const pdScore=evens>=2&&evens<=4?10:5;
+
+  return Math.round(sumScore+advScore+anomScore+pdScore);
+}
+
+// ─── TAB ANALISI AVANZATA ────────────────────────────────────
+function TabAnalisiAvanzata() {
+  const allDraws=useDraws();
+  const series=useMemo(()=>buildSeries(allDraws),[allDraws]);
+  const sums=series.map(d=>d.sum);
+  const muReale=avg(sums),sigmaReale=std(sums);
+  const [computed,setComputed]=useState<any>(null);
+  const [loading,setLoading]=useState(false);
+
+  const esegui=()=>{
+    setLoading(true);
+    setTimeout(()=>{
+      const markov=computeMarkov(allDraws);
+      const cycles=analyzeCycles(allDraws);
+      const clusters=computeClusters(allDraws,muReale,sigmaReale);
+      const entropyData=computeEntropyTimeline(allDraws);
+      const advScores=computeAdvancedScores(allDraws,muReale,sigmaReale);
+      setComputed({markov,cycles,clusters,entropyData,advScores});
+      setLoading(false);
+    },100);
+  };
+
+  const stateLabels: Record<string,string>={
+    LP:"Σ Bassa+Pari",LD:"Σ Bassa+Disp",
+    MP:"Σ Media+Pari",MD:"Σ Media+Disp",
+    HP:"Σ Alta+Pari",HD:"Σ Alta+Disp"
+  };
+  const stateColors: Record<string,string>={
+    LP:C.teal,LD:C.blue,MP:ACCENT,MD:C.orange,HP:C.red,HD:C.purple
+  };
+
+  return (
+    <div>
+      <h2 style={{color:"#22d3ee",fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>🧬 Analisi Avanzata</h2>
+      <div style={{background:"#001a1a",border:"1px solid #22d3ee33",borderRadius:10,padding:12,marginBottom:14,fontSize:10,color:"#22d3ee99",lineHeight:1.7}}>
+        Motore multi-modello: Catene di Markov · Analisi Ciclica · K-Means Clustering · Entropia Locale · Score Bayesiano.
+        I risultati alimentano automaticamente il tab 🔮 Suggeritore con uno score unificato più potente.
+      </div>
+
+      <button onClick={esegui} disabled={loading} style={{width:"100%",padding:"13px",background:loading?"#001a1a":"linear-gradient(135deg,#22d3ee,#0891b2)",color:loading?"#555":"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:900,cursor:loading?"not-allowed":"pointer",fontFamily:"Georgia,serif",marginBottom:16}}>
+        {loading?"⏳ Elaborazione in corso...":"🧬 Esegui Analisi Completa"}
+      </button>
+
+      {computed&&(<>
+
+        {/* MARKOV */}
+        <div style={{background:C.card,border:"1px solid #22d3ee33",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:"#22d3ee",fontWeight:700,fontSize:13,marginBottom:10}}>① Catene di Markov — Stato Sistema</div>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+            <div style={{background:"#001a2a",border:"1px solid #22d3ee44",borderRadius:8,padding:"8px 14px",textAlign:"center"}}>
+              <div style={{color:C.dim,fontSize:9,marginBottom:2}}>STATO ATTUALE</div>
+              <div style={{color:"#22d3ee",fontFamily:"monospace",fontSize:18,fontWeight:900}}>{computed.markov.lastState}</div>
+              <div style={{color:C.dim,fontSize:9}}>{stateLabels[computed.markov.lastState]||""}</div>
+            </div>
+            <div style={{color:C.dim,fontSize:18}}>→</div>
+            <div style={{background:"#001a2a",border:"1px solid #22d3ee44",borderRadius:8,padding:"8px 14px",textAlign:"center"}}>
+              <div style={{color:C.dim,fontSize:9,marginBottom:2}}>STATO PIÙ PROBABILE</div>
+              <div style={{color:"#FFD700",fontFamily:"monospace",fontSize:18,fontWeight:900}}>{computed.markov.bestNext?.[0]||"—"}</div>
+              <div style={{color:"#FFD700",fontSize:10,fontWeight:700}}>{computed.markov.bestNext?((computed.markov.bestNext[1] as number)*100).toFixed(0):0}% prob.</div>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+            {computed.markov.states.map((s:string)=>{
+              const p=computed.markov.nextProbs[s]||0;
+              const col=stateColors[s]||C.dim;
+              const isBest=s===computed.markov.bestNext?.[0];
+              return(
+                <div key={s} style={{background:isBest?"#FFD70011":"#080816",border:`1px solid ${isBest?"#FFD700":col}33`,borderRadius:7,padding:"6px 8px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                    <span style={{color:col,fontSize:10,fontWeight:700}}>{s}</span>
+                    <span style={{color:isBest?"#FFD700":C.dim,fontSize:10,fontFamily:"monospace"}}>{((p as number)*100).toFixed(0)}%</span>
+                  </div>
+                  <div style={{background:"#0a0a18",borderRadius:3,height:4,overflow:"hidden"}}>
+                    <div style={{background:isBest?"#FFD700":col,height:"100%",width:`${(p as number)*100}%`}}/>
+                  </div>
+                  <div style={{color:C.dim,fontSize:8,marginTop:2}}>{stateLabels[s]||""}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* CICLI */}
+        <div style={{background:C.card,border:"1px solid #22d3ee33",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:"#22d3ee",fontWeight:700,fontSize:13,marginBottom:10}}>② Analisi Ciclica — Top 10 numeri "in fase"</div>
+          <div style={{color:C.dim,fontSize:10,marginBottom:10}}>Numeri che superano il loro ciclo medio storico (fase {'>'} 1.5x = molto in ritardo rispetto al proprio pattern)</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {computed.cycles.slice(0,10).map((c:any,i:number)=>{
+              const pct=Math.min(c.phase/3*100,100);
+              const col=c.phase>2?C.red:c.phase>1.5?C.orange:C.teal;
+              return(
+                <div key={c.num} style={{display:"flex",alignItems:"center",gap:8}}>
+                  <Ball num={c.num} color={col} size={28} glow={c.phase>2}/>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                      <span style={{color:C.dim,fontSize:9}}>ciclo:{c.cycle} · gap attuale:{c.currentGap}</span>
+                      <span style={{color:col,fontSize:10,fontWeight:700}}>{c.phase}x ciclo</span>
+                    </div>
+                    <div style={{background:"#0a0a18",borderRadius:3,height:5,overflow:"hidden"}}>
+                      <div style={{background:col,height:"100%",width:`${pct}%`}}/>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* CLUSTERING */}
+        <div style={{background:C.card,border:"1px solid #22d3ee33",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:"#22d3ee",fontWeight:700,fontSize:13,marginBottom:10}}>③ K-Means Clustering — Pattern dominante (ultime 30 est.)</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
+            {computed.clusters.counts.map((cnt:number,i:number)=>{
+              const isDom=i===computed.clusters.dominant;
+              const DC=["#E8B84B","#F07030","#C94040","#8A5CC4"];
+              return(
+                <div key={i} style={{background:isDom?`${DC[i]}22`:"#080816",border:`2px solid ${isDom?DC[i]:C.border}`,borderRadius:8,padding:"8px",textAlign:"center"}}>
+                  <div style={{color:DC[i],fontSize:9,fontWeight:700,marginBottom:2}}>Cluster {i}</div>
+                  <div style={{color:isDom?DC[i]:C.dim,fontSize:16,fontWeight:900,fontFamily:"monospace"}}>{cnt}</div>
+                  <div style={{color:C.dim,fontSize:8}}>est.recenti</div>
+                  {isDom&&<div style={{color:DC[i],fontSize:8,marginTop:3,fontWeight:700}}>▲ DOMINANTE</div>}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{background:"#080816",border:`1px solid ${ACCENT}33`,borderRadius:8,padding:10}}>
+            <div style={{color:ACCENT,fontSize:10,fontWeight:700,marginBottom:6}}>Caratteristiche cluster dominante:</div>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+              <span style={{color:C.dim,fontSize:10}}>Σ tendenza: <strong style={{color:ACCENT}}>{computed.clusters.domInfo.sumBias}</strong></span>
+              <span style={{color:C.dim,fontSize:10}}>Pari medi: <strong style={{color:ACCENT}}>{computed.clusters.domInfo.evensBias}</strong></span>
+              <span style={{color:C.dim,fontSize:10}}>Gap medio: <strong style={{color:ACCENT}}>{computed.clusters.domInfo.gapBias}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        {/* ENTROPIA */}
+        <div style={{background:C.card,border:"1px solid #22d3ee33",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:"#22d3ee",fontWeight:700,fontSize:13,marginBottom:10}}>④ Entropia Locale — Fase del sistema</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+            <div style={{background:"#080816",borderRadius:8,padding:10,textAlign:"center"}}>
+              <div style={{color:C.dim,fontSize:9,marginBottom:2}}>ENTROPIA ATTUALE</div>
+              <div style={{color:"#22d3ee",fontFamily:"monospace",fontSize:16,fontWeight:900}}>{(computed.entropyData.currentEntropy*100).toFixed(2)}%</div>
+            </div>
+            <div style={{background:"#080816",borderRadius:8,padding:10,textAlign:"center"}}>
+              <div style={{color:C.dim,fontSize:9,marginBottom:2}}>MEDIA STORICA</div>
+              <div style={{color:ACCENT,fontFamily:"monospace",fontSize:16,fontWeight:900}}>{(computed.entropyData.avgEntropy*100).toFixed(2)}%</div>
+            </div>
+            <div style={{background:computed.entropyData.isChaotic?"#1a0a00":"#001a0a",borderRadius:8,padding:10,textAlign:"center",border:`1px solid ${computed.entropyData.isChaotic?C.orange:C.green}44`}}>
+              <div style={{color:C.dim,fontSize:9,marginBottom:2}}>FASE</div>
+              <div style={{color:computed.entropyData.isChaotic?C.orange:C.green,fontFamily:"monospace",fontSize:11,fontWeight:900}}>
+                {computed.entropyData.isChaotic?"CAOTICA":"ORDINATA"}
+              </div>
+              <div style={{color:C.dim,fontSize:8}}>{computed.entropyData.isChaotic?"alta variabilità":"pattern stabili"}</div>
+            </div>
+          </div>
+          {/* Mini grafico entropia */}
+          <div style={{background:"#080816",borderRadius:6,padding:8}}>
+            <div style={{color:C.dim,fontSize:9,marginBottom:4}}>Andamento entropia (ultime 100 finestre):</div>
+            <svg width="100%" height="50" viewBox="0 0 400 50" preserveAspectRatio="none">
+              {(()=>{
+                const data=computed.entropyData.timeline.slice(-100);
+                if(data.length<2) return null;
+                const vals=data.map((d:any)=>d.entropy);
+                const min=Math.min(...vals)-0.005;
+                const max=Math.max(...vals)+0.005;
+                const pts=data.map((d:any,i:number)=>{
+                  const x=(i/(data.length-1))*400;
+                  const y=50-((d.entropy-min)/(max-min))*50;
+                  return `${x},${y}`;
+                }).join(" ");
+                const avgY=50-((computed.entropyData.avgEntropy-min)/(max-min))*50;
+                return(<>
+                  <polyline points={pts} fill="none" stroke="#22d3ee" strokeWidth="1.5"/>
+                  <line x1="0" y1={avgY} x2="400" y2={avgY} stroke={`${ACCENT}88`} strokeDasharray="4,3" strokeWidth="1"/>
+                </>);
+              })()}
+            </svg>
+          </div>
+        </div>
+
+        {/* SCORE AVANZATO TOP 20 */}
+        <div style={{background:C.card,border:"1px solid #22d3ee33",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:"#22d3ee",fontWeight:700,fontSize:13,marginBottom:6}}>⑤ Score Unificato Avanzato — Top 20 numeri</div>
+          <div style={{color:C.dim,fontSize:9,marginBottom:10}}>
+            Ciclo 30% · Bayesiano 25% · Ritardo 25% · Freq.deficit 20%
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:6}}>
+            {computed.advScores.slice(0,20).map((s:any,i:number)=>{
+              const col=i<5?"#FFD700":i<10?C.orange:C.teal;
+              return(
+                <div key={s.num} style={{background:"#080816",border:`1px solid ${col}33`,borderRadius:8,padding:"8px 10px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+                    <Ball num={s.num} color={col} size={28} glow={i<5}/>
+                    <div>
+                      <div style={{color:col,fontFamily:"monospace",fontSize:13,fontWeight:900}}>{s.unified}</div>
+                      <div style={{color:C.dim,fontSize:8}}>score</div>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                    {[
+                      {l:"ciclo",v:s.cycleScore,c:"#22d3ee"},
+                      {l:"bayes",v:s.bayesScore,c:C.purple},
+                      {l:"ritardo",v:s.ritScore,c:C.teal},
+                      {l:"freq",v:s.freqScore,c:C.orange},
+                    ].map(row=>(
+                      <div key={row.l} style={{display:"flex",gap:4,alignItems:"center"}}>
+                        <span style={{color:C.dim,fontSize:7,width:30}}>{row.l}</span>
+                        <div style={{flex:1,background:"#0a0a18",borderRadius:2,height:3,overflow:"hidden"}}>
+                          <div style={{background:row.c,height:"100%",width:`${Math.min(row.v,100)}%`}}/>
+                        </div>
+                        <span style={{color:row.c,fontSize:7,fontFamily:"monospace",width:20,textAlign:"right"}}>{row.v.toFixed(0)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{color:C.dim,fontSize:7,marginTop:4}}>rit:{s.rit} · freq:{s.freq}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{background:"#001a1a",border:"1px solid #22d3ee22",borderRadius:8,padding:10,fontSize:9,color:"#22d3ee66",lineHeight:1.8}}>
+          Il tab 🔮 Suggeritore ora utilizza automaticamente questo score unificato per generare sestine più ottimizzate.
+          Riesegui l'analisi dopo ogni nuova estrazione per aggiornare i modelli.
+        </div>
+
+      </>)}
+    </div>
+  );
+}
 // ─── CALCOLO SCORE QUALITÀ ────────────────────────────────────────────────────
 function calcQualityScore(nums, allDraws, freq, sigmaReale, muReale){
   const s = sm(nums);
