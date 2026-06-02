@@ -4,6 +4,7 @@ import EuroJackpot from './pages/AppEuroJackpot'
 import EuroMillions from './pages/AppEuroMillions'
 import Archivio from './pages/AppArchivio'
 import GeneratoreAvanzato from './pages/AppGeneratoreAvanzato'
+import LaboratorioScientifico from './pages/LaboratorioScientifico'
 
 function NavItem({ to, label, color }: { to: string; label: string; color: string }) {
   return (
@@ -34,6 +35,7 @@ export default function App() {
             <NavItem to="/euromillions" label="EuroMillions" color="bg-purple-600" />
             <NavItem to="/archivio" label="Archivio" color="bg-slate-600" />
             <NavItem to="/generatore" label="🎯 Generatore" color="bg-yellow-600" />
+            <NavItem to="/laboratorio" label="🔬 Laboratorio" color="bg-red-600" />
           </div>
         </nav>
         <main>
@@ -43,6 +45,7 @@ export default function App() {
             <Route path="/euromillions" element={<EuroMillions />} />
             <Route path="/archivio" element={<Archivio />} />
             <Route path="/generatore" element={<GeneratoreAvanzato />} />
+            <Route path="/laboratorio" element={<LaboratorioScientifico />} />
           </Routes>
         </main>
       </div>
