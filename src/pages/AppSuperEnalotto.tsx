@@ -1829,6 +1829,7 @@ const TABS=[
   {id:"banda",icon:"📐",label:"Banda Adattiva"},
   {id:"generatore",icon:"🎯",label:"Generatore"},
   {id:"suggeritore",icon:"🔮",label:"Suggeritore"},
+  {id:"analisi",icon:"🧬",label:"Analisi"},
   {id:"confronto",icon:"🔁",label:"Confronto"},
   {id:"estrazioni",icon:"📥",label:"Estrazioni"},
   {id:"biglietti",icon:"🎫",label:"Biglietti"},
