@@ -1914,6 +1914,7 @@ export default function App(){
         {tab==="banda"&&<TabBanda/>}
         {tab==="generatore"&&<TabGeneratore/>}
         {tab==="suggeritore"&&<TabSuggeritore/>}
+        {tab==="analisi"&&<TabAnalisiAvanzata/>}     
         {tab==="confronto"&&<TabConfronto/>}
         {tab==="estrazioni"&&<TabEstrazioni onUpdate={handleUpdate}/>}
         {tab==="biglietti"&&<TabBiglietti/>}
