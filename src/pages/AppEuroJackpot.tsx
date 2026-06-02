@@ -658,7 +658,511 @@ function TabBiglietti(){
     </div>
   );
 }
+// ═══════════════════════════════════════════════════════════════
+// PARTI NUOVE PER AppEuroJackpot.tsx
+// Inserire PRIMA della costante TABS
+// ═══════════════════════════════════════════════════════════════
 
+// ─── MOTORE AVANZATO EJ (50 numeri, 5 pick) ──────────────────
+
+function getMarkovStateEJ(nums) {
+  const s=nums.reduce((a,b)=>a+b,0);
+  const e=nums.filter(n=>n%2===0).length;
+  const cat=s<105?'L':s>150?'H':'M';
+  const par=e>=3?'P':'D';
+  return cat+par;
+}
+
+function computeMarkovEJ(draws) {
+  const states=['LP','LD','MP','MD','HP','HD'];
+  const trans={};
+  states.forEach(s=>{trans[s]={};states.forEach(t=>trans[s][t]=0);});
+  for(let i=1;i<draws.length;i++){
+    const from=getMarkovStateEJ(draws[i-1].nums);
+    const to=getMarkovStateEJ(draws[i].nums);
+    trans[from][to]++;
+  }
+  const prob={};
+  states.forEach(s=>{
+    const tot=Object.values(trans[s]).reduce((a,b)=>a+b,0);
+    prob[s]={};
+    states.forEach(t=>prob[s][t]=tot>0?trans[s][t]/tot:0);
+  });
+  const lastState=getMarkovStateEJ(draws[draws.length-1].nums);
+  const nextProbs=prob[lastState]||{};
+  const bestNext=Object.entries(nextProbs).sort((a,b)=>b[1]-a[1])[0];
+  return {lastState,nextProbs,bestNext,states};
+}
+
+function analyzeCyclesEJ(draws) {
+  const N=draws.length;
+  return Array.from({length:POOL},(_,i)=>{
+    const num=i+1;
+    const appearances=[];
+    draws.forEach((d,idx)=>{if(d.nums.includes(num))appearances.push(idx);});
+    if(appearances.length<2) return {num,cycle:N,phase:0,score:0,currentGap:N,lastApp:-1};
+    const gaps=[];
+    for(let j=1;j<appearances.length;j++) gaps.push(appearances[j]-appearances[j-1]);
+    const avgGap=gaps.reduce((a,b)=>a+b,0)/gaps.length;
+    const lastApp=appearances[appearances.length-1];
+    const currentGap=N-1-lastApp;
+    const phase=currentGap/avgGap;
+    return {num,cycle:parseFloat(avgGap.toFixed(1)),phase:parseFloat(phase.toFixed(2)),score:Math.min(phase,3)/3,currentGap,lastApp};
+  });
+}
+
+function computeClustersEJ(draws,muReale,sigmaReale) {
+  function getFeatures(nums){
+    const s=nums.reduce((a,b)=>a+b,0);
+    const e=nums.filter(n=>n%2===0).length;
+    const decades=[0,0,0,0,0];
+    nums.forEach(n=>decades[Math.floor((n-1)/10)]++);
+    const maxDec=Math.max(...decades);
+    const gaps=[];
+    for(let i=1;i<nums.length;i++) gaps.push(nums[i]-nums[i-1]);
+    const avgGap=gaps.reduce((a,b)=>a+b,0)/gaps.length;
+    return [(s-muReale)/Math.max(sigmaReale,1),(e-2.5)/2.5,maxDec/PICK,(avgGap-10)/10];
+  }
+  const features=draws.map(d=>getFeatures(d.nums));
+  const k=4,iterations=15;
+  let centroids=features.slice(0,k).map(d=>[...d]);
+  let assignments=new Array(features.length).fill(0);
+  for(let iter=0;iter<iterations;iter++){
+    features.forEach((point,i)=>{
+      let minDist=Infinity,best=0;
+      centroids.forEach((c,j)=>{const dist=point.reduce((sum,v,ki)=>sum+(v-c[ki])**2,0);if(dist<minDist){minDist=dist;best=j;}});
+      assignments[i]=best;
+    });
+    centroids=Array.from({length:k},(_,ci)=>{
+      const pts=features.filter((_,i)=>assignments[i]===ci);
+      if(pts.length===0) return centroids[ci];
+      return pts[0].map((_,j)=>pts.reduce((sum,p)=>sum+p[j],0)/pts.length);
+    });
+  }
+  const recent=assignments.slice(-30);
+  const counts=[0,0,0,0];
+  recent.forEach(c=>counts[c]++);
+  const dominant=counts.indexOf(Math.max(...counts));
+  const dc=centroids[dominant];
+  return {assignments,centroids,dominant,counts,
+    domInfo:{sumBias:(dc[0]*sigmaReale+muReale).toFixed(0),evensBias:(dc[1]*2.5+2.5).toFixed(1),gapBias:(dc[3]*10+10).toFixed(1)}};
+}
+
+function localEntropyEJ(window) {
+  const freq=new Array(POOL+1).fill(0);
+  window.forEach(d=>d.nums.forEach(n=>freq[n]++));
+  const total=window.length*PICK;
+  let H=0;
+  for(let i=1;i<=POOL;i++){const p=freq[i]/total;if(p>0)H-=p*Math.log2(p);}
+  return H/Math.log2(POOL);
+}
+
+function computeEntropyTimelineEJ(draws,windowSize=50) {
+  const timeline=[];
+  for(let i=windowSize;i<=draws.length;i++){
+    timeline.push({idx:i,entropy:localEntropyEJ(draws.slice(i-windowSize,i)),date:draws[i-1]?.date?.substring(0,5)||""});
+  }
+  const vals=timeline.map(t=>t.entropy);
+  const avgE=vals.reduce((a,b)=>a+b,0)/vals.length;
+  const current=vals[vals.length-1]||0;
+  return {timeline,avgEntropy:avgE,currentEntropy:current,isChaotic:current>avgE};
+}
+
+function computeAdvancedScoresEJ(draws,muReale,sigmaReale) {
+  const N=draws.length;
+  const cycles=analyzeCyclesEJ(draws);
+  return Array.from({length:POOL},(_,i)=>{
+    const num=i+1;
+    const cyc=cycles[i];
+    const cycleScore=cyc.score;
+    // Bayesiano
+    const recent=draws.slice(-150);
+    const freqR=recent.filter(d=>d.nums.includes(num)).length;
+    const alpha=freqR+1,beta=150-freqR+1;
+    const posteriorMean=alpha/(alpha+beta);
+    const expectedProb=PICK/POOL;
+    const bayesScore=Math.min(Math.max(0,expectedProb-posteriorMean)*20,1);
+    // Ritardo
+    let rit=N;
+    for(let j=N-1;j>=0;j--) if(draws[j].nums.includes(num)){rit=N-1-j;break;}
+    const ritScore=Math.min(rit/N,1);
+    // Freq deficit
+    const freq=draws.filter(d=>d.nums.includes(num)).length;
+    const expected=N*PICK/POOL;
+    const freqScore=Math.max(0,(expected-freq)/Math.max(expected,1));
+    const unified=cycleScore*0.30+bayesScore*0.25+ritScore*0.25+freqScore*0.20;
+    return {num,unified:parseFloat((unified*100).toFixed(1)),cycleScore:parseFloat((cycleScore*100).toFixed(1)),bayesScore:parseFloat((bayesScore*100).toFixed(1)),ritScore:parseFloat((ritScore*100).toFixed(1)),freqScore:parseFloat((freqScore*100).toFixed(1)),rit,freq,cycle:cyc.cycle,phase:cyc.phase};
+  }).sort((a,b)=>b.unified-a.unified);
+}
+
+// ─── QUALITY SCORE ────────────────────────────────────────────
+function calcQualityScoreEJ(nums,allDraws,freq,sigmaReale,muReale,advScores) {
+  const s=nums.reduce((a,b)=>a+b,0);
+  const zS=Math.abs((s-muReale)/Math.max(sigmaReale,1));
+  const sumScore=Math.max(0,25-zS*8);
+  const advMean=nums.reduce((acc,n)=>{const a=advScores.find(x=>x.num===n);return acc+(a?a.unified:0);},0)/nums.length;
+  const advScore=(advMean/100)*50;
+  const expected=allDraws.length*PICK/POOL;
+  const anomaly=nums.reduce((acc,n)=>acc+Math.abs(freq[n]-expected)/Math.max(expected,1),0)/nums.length;
+  const anomScore=Math.max(0,15-anomaly*15);
+  const evens=nums.filter(n=>n%2===0).length;
+  const pdScore=evens>=2&&evens<=3?10:5;
+  return Math.round(sumScore+advScore+anomScore+pdScore);
+}
+
+function qualityStarsEJ(score){
+  if(score>=80) return "⭐⭐⭐⭐⭐";
+  if(score>=65) return "⭐⭐⭐⭐";
+  if(score>=50) return "⭐⭐⭐";
+  if(score>=35) return "⭐⭐";
+  return "⭐";
+}
+
+function qualityLabelEJ(score){
+  if(score>=80) return {l:"ECCELLENTE",c:"#FFD700"};
+  if(score>=65) return {l:"OTTIMA",c:"#4A9E5C"};
+  if(score>=50) return {l:"BUONA",c:"#2BA89A"};
+  if(score>=35) return {l:"DISCRETA",c:"#F07030"};
+  return {l:"BASSA",c:"#C94040"};
+}
+
+// ─── TAB SUGGERITORE EJ ──────────────────────────────────────
+function TabSuggeritore(){
+  const allDraws=useDraws();
+  const series=useMemo(()=>buildSeries(allDraws),[allDraws]);
+  const sums=series.map(d=>d.sum);
+  const muReale=avg(sums),sigmaReale=std(sums);
+
+  const [winSize,setWinSize]=useState(allDraws.length);
+  const [kBand,setKBand]=useState(1.0);
+  const [ratioMode,setRatioMode]=useState("auto");
+  const [pesoRitardo,setPesoRitardo]=useState(50);
+  const [qty,setQty]=useState(5);
+  const [results,setResults]=useState([]);
+  const [loading,setLoading]=useState(false);
+  const [selBonus,setSelBonus]=useState({});
+  const [savedIds,setSavedIds]=useState(new Set());
+
+  const winDraws=useMemo(()=>allDraws.slice(-Math.min(winSize,allDraws.length)),[allDraws,winSize]);
+
+  const freq=useMemo(()=>{
+    const f=Array(POOL+1).fill(0);
+    winDraws.forEach(d=>d.nums.forEach(n=>f[n]++));
+    return f;
+  },[winDraws]);
+
+  function getRitardo(num){for(let i=allDraws.length-1;i>=0;i--){if(allDraws[i].nums.includes(num))return allDraws.length-1-i;}return allDraws.length;}
+
+  const scored=useMemo(()=>{
+    const totalOcc=winDraws.length*PICK;
+    const expected=totalOcc/POOL;
+    const pw=pesoRitardo/100;
+    return Array.from({length:POOL},(_,i)=>{
+      const num=i+1,f=freq[num],rit=getRitardo(num);
+      const freqScore=(expected-f)/Math.max(expected,1);
+      const ritScore=rit/allDraws.length;
+      return {num,f,rit,score:freqScore*(1-pw)+ritScore*pw};
+    }).sort((a,b)=>b.score-a.score);
+  },[freq,winDraws,allDraws,pesoRitardo]);
+
+  const bestRatio=useMemo(()=>{
+    const counts={};
+    allDraws.forEach(d=>{const e=d.nums.filter(n=>n%2===0).length;const key=`${e}-${PICK-e}`;counts[key]=(counts[key]||0)+1;});
+    return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0]||"3-2";
+  },[allDraws]);
+
+  const targetEvens=useMemo(()=>{
+    if(ratioMode==="auto") return parseInt(bestRatio.split("-")[0]);
+    return parseInt(ratioMode.split("-")[0]);
+  },[ratioMode,bestRatio]);
+
+  const loB=Math.round(muReale-kBand*sigmaReale);
+  const hiB=Math.round(muReale+kBand*sigmaReale);
+
+  // Bonus affinità
+  function getBonusAffinita(){
+    const bf={};
+    allDraws.forEach(d=>(d.bonus||[]).forEach(b=>{bf[b]=(bf[b]||0)+1;}));
+    const tot=Object.values(bf).reduce((s,v)=>s+v,0);
+    return Array.from({length:BONUS_POOL},(_,i)=>i+1).map(n=>{
+      const f=bf[n]||0;
+      let rit=allDraws.length;
+      for(let i=allDraws.length-1;i>=0;i--){if((allDraws[i].bonus||[]).includes(n)){rit=allDraws.length-1-i;break;}}
+      const score=(f/Math.max(tot,1))*0.6+(rit/allDraws.length)*0.4;
+      return {num:n,f,rit,score,pct:tot?Math.round(f/tot*100):0};
+    }).sort((a,b)=>b.score-a.score);
+  }
+
+  const bonusAffinita=useMemo(()=>getBonusAffinita(),[allDraws]);
+
+  const genera=()=>{
+    setLoading(true);setResults([]);setSelBonus({});setSavedIds(new Set());
+    setTimeout(()=>{
+      const advScores=computeAdvancedScoresEJ(allDraws,muReale,sigmaReale);
+      const rng=mkRng(Date.now());
+      const found=[];
+      const maxAttempts=3000000;
+      let sc=0;
+      const pool=scored.map(s=>s.num);
+      const weights=scored.map(s=>Math.max(0.05,s.score+1));
+      const totalW=weights.reduce((a,b)=>a+b,0);
+      const cumW=[];let acc=0;
+      weights.forEach(w=>{acc+=w;cumW.push(acc/totalW);});
+      function pickWeighted(){const r=rng();for(let i=0;i<cumW.length;i++) if(r<=cumW[i]) return pool[i];return pool[pool.length-1];}
+      while(found.length<qty&&sc<maxAttempts){
+        sc++;
+        const nums=new Set();let attempts=0;
+        while(nums.size<PICK&&attempts<200){nums.add(pickWeighted());attempts++;}
+        if(nums.size<PICK) continue;
+        const arr=[...nums].sort((a,b)=>a-b);
+        const s=sm(arr);
+        if(s<loB||s>hiB) continue;
+        const evens=arr.filter(n=>n%2===0).length;
+        if(Math.abs(evens-targetEvens)>1) continue;
+        const key=arr.join(",");
+        if(found.some(f=>f.nums.join(",")===key)) continue;
+        const anomaly=arr.reduce((a,n)=>{const exp=winDraws.length*PICK/POOL;return a+Math.abs(freq[n]-exp)/Math.max(exp,1);},0)/PICK;
+        const ritMedio=arr.reduce((a,n)=>a+getRitardo(n),0)/PICK;
+        const quality=calcQualityScoreEJ(arr,allDraws,freq,sigmaReale,muReale,advScores);
+        const topBonus=bonusAffinita.slice(0,2).map(b=>b.num);
+        found.push({nums:arr,sum:s,evens,odds:PICK-evens,anomaly,ritMedio,zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2),quality,topBonus});
+      }
+      found.sort((a,b)=>b.quality-a.quality);
+      setResults(found);setLoading(false);
+    },50);
+  };
+
+  const salvaBiglietto=(r,idx)=>{
+    const bonus=selBonus[idx]||r.topBonus;
+    const ticket={id:Date.now()+idx,nums:r.nums,bonus,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:"suggeritore",sum:r.sum};
+    const prev=JSON.parse(localStorage.getItem(LS_TICKETS_EJ)||"[]");
+    localStorage.setItem(LS_TICKETS_EJ,JSON.stringify([...prev,ticket]));
+    setSavedIds(prev=>new Set([...prev,idx]));
+    alert(`✅ Salvata in Biglietti!\n${r.nums.join("-")} | EN:${bonus?.join("-")||"—"}`);
+  };
+
+  const pariDisp=allDraws.slice(-20).map(d=>d.nums.filter(n=>n%2===0).length);
+  const avgPD=(pariDisp.reduce((a,b)=>a+b,0)/pariDisp.length).toFixed(1);
+  const ratioOpts=["auto","3-2","2-3","4-1","1-4"];
+
+  return(
+    <div>
+      <h2 style={{color:"#a78bfa",fontFamily:"Georgia,serif",fontSize:16,marginBottom:12}}>🔮 Suggeritore Scientifico</h2>
+      <div style={{background:"#0a081a",border:"1px solid #a78bfa33",borderRadius:12,padding:14,marginBottom:16}}>
+        <div style={{color:"#a78bfa",fontWeight:700,fontSize:11,marginBottom:12,letterSpacing:1,textTransform:"uppercase"}}>⚙️ Parametri</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div>
+            <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Finestra analisi</div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {[50,100,200,allDraws.length].map(w=>{const lbl=w===allDraws.length?"Tutte":w;const act=winSize===Math.min(w,allDraws.length);return(<button key={w} onClick={()=>setWinSize(Math.min(w,allDraws.length))} style={{background:act?"#a78bfa22":"transparent",color:act?"#a78bfa":C.dim,border:`1px solid ${act?"#a78bfa":C.border}`,borderRadius:8,padding:"3px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{lbl}</button>);})}
+            </div>
+          </div>
+          <div>
+            <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Banda somma [{loB}–{hiB}]</div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {[0.5,1.0,1.5,2.0].map(k=>{const act=kBand===k;return(<button key={k} onClick={()=>setKBand(k)} style={{background:act?"#a78bfa22":"transparent",color:act?"#a78bfa":C.dim,border:`1px solid ${act?"#a78bfa":C.border}`,borderRadius:8,padding:"3px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>±{k}σ</button>);})}
+            </div>
+          </div>
+          <div>
+            <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Pari/Dispari (storico: {bestRatio})</div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {ratioOpts.map(r=>{const act=ratioMode===r;return(<button key={r} onClick={()=>setRatioMode(r)} style={{background:act?"#a78bfa22":"transparent",color:act?"#a78bfa":C.dim,border:`1px solid ${act?"#a78bfa":C.border}`,borderRadius:8,padding:"3px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{r==="auto"?`Auto(${bestRatio})`:r}</button>);})}
+            </div>
+          </div>
+          <div>
+            <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Peso: <span style={{color:C.teal}}>Rit.{pesoRitardo}%</span> · <span style={{color:C.orange}}>Freq.{100-pesoRitardo}%</span></div>
+            <input type="range" min={0} max={100} step={10} value={pesoRitardo} onChange={e=>setPesoRitardo(+e.target.value)} style={{width:"100%",accentColor:"#a78bfa",cursor:"pointer"}}/>
+          </div>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8,marginBottom:16}}>
+        <div style={{background:"#0e0a1c",border:"1px solid #a78bfa33",borderRadius:10,padding:10}}>
+          <div style={{color:"#a78bfa",fontSize:9,fontWeight:700,marginBottom:3}}>RANGE SOMMA</div>
+          <div style={{color:"#fff",fontFamily:"monospace",fontSize:13,fontWeight:900}}>{loB}–{hiB}</div>
+          <div style={{color:C.dim,fontSize:9}}>μ={muReale.toFixed(0)} σ={sigmaReale.toFixed(0)}</div>
+        </div>
+        <div style={{background:"#0e0a1c",border:"1px solid #a78bfa33",borderRadius:10,padding:10}}>
+          <div style={{color:"#a78bfa",fontSize:9,fontWeight:700,marginBottom:3}}>PARI/DISPARI</div>
+          <div style={{color:"#fff",fontFamily:"monospace",fontSize:13,fontWeight:900}}>{ratioMode==="auto"?bestRatio:ratioMode}</div>
+          <div style={{color:C.dim,fontSize:9}}>ult.20: {avgPD}P</div>
+        </div>
+        <div style={{background:"#0e0a1c",border:"1px solid #a78bfa33",borderRadius:10,padding:10}}>
+          <div style={{color:"#a78bfa",fontSize:9,fontWeight:700,marginBottom:3}}>TOP RITARDATARI</div>
+          <div style={{color:C.teal,fontFamily:"monospace",fontSize:11,fontWeight:700}}>{scored.slice(0,3).map(s=>s.num).join(" · ")}</div>
+          <div style={{color:C.dim,fontSize:9}}>score composito</div>
+        </div>
+        <div style={{background:"#0e0a1c",border:"1px solid #a78bfa33",borderRadius:10,padding:10}}>
+          <div style={{color:"#a78bfa",fontSize:9,fontWeight:700,marginBottom:3}}>ESTRAZIONI</div>
+          <div style={{color:"#fff",fontFamily:"monospace",fontSize:13,fontWeight:900}}>{allDraws.length}</div>
+          <div style={{color:C.dim,fontSize:9}}>Supabase</div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+        <span style={{color:C.dim,fontSize:11}}>Combinazioni:</span>
+        {[1,3,5,10,15,20].map(n=>(<button key={n} onClick={()=>setQty(n)} style={{background:qty===n?"#a78bfa22":"transparent",color:qty===n?"#a78bfa":C.dim,border:`1px solid ${qty===n?"#a78bfa":C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>))}
+      </div>
+      <button onClick={genera} disabled={loading} style={{width:"100%",padding:"13px",background:loading?"#1a1a2e":"linear-gradient(135deg,#a78bfa,#6366f1)",color:loading?"#555":"#fff",border:"none",borderRadius:10,fontSize:16,fontWeight:900,cursor:loading?"not-allowed":"pointer",fontFamily:"Georgia,serif",marginBottom:16}}>
+        {loading?"⏳ Generazione in corso...":"🔮 Genera Suggerimenti"}
+      </button>
+      {results.length>0&&(
+        <>
+          <div style={{color:C.dim,fontSize:11,marginBottom:12}}>Ordinate per <strong style={{color:"#FFD700"}}>score qualità</strong> · banda [{loB}–{hiB}] · P/D ±1 da {ratioMode==="auto"?bestRatio:ratioMode}</div>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {results.map((r,i)=>{
+              const ql=qualityLabelEJ(r.quality);
+              const stars=qualityStarsEJ(r.quality);
+              const top3Bonus=bonusAffinita.slice(0,3);
+              const chosenBonus=selBonus[i]||r.topBonus;
+              const isSaved=savedIds.has(i);
+              const isBest=i===0;
+              return(
+                <div key={i} style={{background:"#080816",border:`2px solid ${isBest?"#FFD70055":"#a78bfa22"}`,borderLeft:`4px solid ${ql.c}`,borderRadius:12,padding:"14px",position:"relative"}}>
+                  {isBest&&<div style={{position:"absolute",top:-10,left:14,background:"#FFD700",color:"#000",fontSize:9,fontWeight:900,padding:"2px 10px",borderRadius:10}}>🏆 MIGLIORE</div>}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{color:"#a78bfa",fontFamily:"monospace",fontSize:11}}>#{i+1}</span>
+                      <span style={{color:ql.c,fontWeight:900,fontSize:13}}>{stars}</span>
+                      <span style={{background:`${ql.c}22`,color:ql.c,borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700}}>{ql.l} {r.quality}/100</span>
+                    </div>
+                    <div style={{background:"#0a0a18",borderRadius:6,height:6,width:80,overflow:"hidden"}}>
+                      <div style={{background:`linear-gradient(90deg,${ql.c},#a78bfa)`,height:"100%",width:`${r.quality}%`}}/>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+                    {r.nums.map(n=>{const rank=scored.findIndex(x=>x.num===n);const col=rank<10?C.teal:rank<30?ACCENT:C.orange;return <Ball key={n} num={n} color={col} size={38} glow={rank<8}/>;})}</div>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:12}}>
+                    <span style={{background:"#a78bfa22",color:"#a78bfa",borderRadius:5,padding:"2px 8px",fontSize:10,fontFamily:"monospace",fontWeight:700}}>Σ {r.sum}</span>
+                    <span style={{background:"#12122a",color:C.dim,borderRadius:5,padding:"2px 8px",fontSize:10}}>{r.evens}P–{r.odds}D</span>
+                    <span style={{background:"#12122a",color:Math.abs(parseFloat(r.zScore))<1?C.green:C.orange,borderRadius:5,padding:"2px 8px",fontSize:10}}>z={r.zScore}</span>
+                    <span style={{background:`${C.teal}22`,color:C.teal,borderRadius:5,padding:"2px 8px",fontSize:10}}>rit.medio {r.ritMedio.toFixed(0)}</span>
+                  </div>
+                  <div style={{background:"#0a0810",border:"1px solid #FFD70022",borderRadius:10,padding:10,marginBottom:10}}>
+                    <div style={{color:"#FFD700",fontSize:10,fontWeight:700,marginBottom:8}}>⭐ Euro Numeri consigliati — clicca per scegliere (2)</div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                      {top3Bonus.map((b,bi)=>{
+                        const isCho=(chosenBonus||[]).includes(b.num);
+                        return(
+                          <div key={b.num} onClick={()=>setSelBonus(prev=>{const cur=prev[i]||[];const next=cur.includes(b.num)?cur.filter(x=>x!==b.num):cur.length<BONUS_COUNT?[...cur,b.num]:cur;return{...prev,[i]:next};})} style={{textAlign:"center",cursor:"pointer",padding:"6px 8px",background:isCho?"#FFD70018":"#0e0e1c",border:`2px solid ${isCho?"#FFD700":"#2a2a3a"}`,borderRadius:8,boxShadow:isCho?"0 0 10px #FFD70044":"none"}}>
+                            <Ball num={b.num} size={30} gold={isCho} color={isCho?"#FFD700":"#888"} glow={isCho}/>
+                            <div style={{color:isCho?"#FFD700":bi===0?"#E8B84B":"#888",fontSize:9,marginTop:3,fontWeight:700}}>{b.pct}%</div>
+                            <div style={{color:C.dim,fontSize:8}}>r.{b.rit}</div>
+                          </div>
+                        );
+                      })}
+                      <div style={{display:"flex",alignItems:"center",paddingLeft:8,borderLeft:"1px solid #222",gap:4}}>
+                        {(chosenBonus||[]).map(n=><Ball key={n} num={n} size={30} gold glow/>)}
+                        {(!chosenBonus||chosenBonus.length===0)&&<span style={{color:"#555",fontSize:10}}>—</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={()=>salvaBiglietto(r,i)} disabled={isSaved} style={{width:"100%",padding:"10px",background:isSaved?`${C.green}22`:`linear-gradient(135deg,${C.purple},#a78bfa)`,color:isSaved?C.green:"#fff",border:`2px solid ${isSaved?C.green:C.purple}`,borderRadius:10,fontSize:13,fontWeight:700,cursor:isSaved?"default":"pointer",fontFamily:"inherit"}}>
+                    {isSaved?"✅ Salvata in Biglietti":"💾 Salva in Biglietti"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{marginTop:14,fontSize:9,color:"#333",lineHeight:1.8,borderTop:"1px solid #111",paddingTop:10}}>
+            Score (0–100): somma vicina alla media (+25) · score avanzato numeri (+50) · bassa anomalia (+15) · P/D bilanciato (+10). Nessun potere predittivo.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── TAB ANALISI AVANZATA EJ ─────────────────────────────────
+function TabAnalisiAvanzata(){
+  const allDraws=useDraws();
+  const series=useMemo(()=>buildSeries(allDraws),[allDraws]);
+  const sums=series.map(d=>d.sum);
+  const muReale=avg(sums),sigmaReale=std(sums);
+  const [computed,setComputed]=useState(null);
+  const [loading,setLoading]=useState(false);
+
+  const esegui=()=>{
+    setLoading(true);
+    setTimeout(()=>{
+      const markov=computeMarkovEJ(allDraws);
+      const cycles=analyzeCyclesEJ(allDraws);
+      const clusters=computeClustersEJ(allDraws,muReale,sigmaReale);
+      const entropyData=computeEntropyTimelineEJ(allDraws);
+      const advScores=computeAdvancedScoresEJ(allDraws,muReale,sigmaReale);
+      setComputed({markov,cycles,clusters,entropyData,advScores});
+      setLoading(false);
+    },100);
+  };
+
+  const stateLabels={LP:"Σ Bassa+Pari",LD:"Σ Bassa+Disp",MP:"Σ Media+Pari",MD:"Σ Media+Disp",HP:"Σ Alta+Pari",HD:"Σ Alta+Disp"};
+  const stateColors={LP:C.teal,LD:"#4A8FD4",MP:ACCENT,MD:C.orange,HP:C.red,HD:C.purple};
+
+  return(
+    <div>
+      <h2 style={{color:"#22d3ee",fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>🧬 Analisi Avanzata</h2>
+      <div style={{background:"#001a1a",border:"1px solid #22d3ee33",borderRadius:10,padding:12,marginBottom:14,fontSize:10,color:"#22d3ee99",lineHeight:1.7}}>
+        Motore multi-modello su {allDraws.length} estrazioni EuroJackpot: Catene di Markov · Analisi Ciclica · K-Means · Entropia · Score Bayesiano.
+      </div>
+      <button onClick={esegui} disabled={loading} style={{width:"100%",padding:"13px",background:loading?"#001a1a":"linear-gradient(135deg,#22d3ee,#0891b2)",color:loading?"#555":"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:900,cursor:loading?"not-allowed":"pointer",fontFamily:"Georgia,serif",marginBottom:16}}>
+        {loading?"⏳ Elaborazione...":"🧬 Esegui Analisi Completa"}
+      </button>
+      {computed&&(<>
+        <div style={{background:C.card,border:"1px solid #22d3ee33",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:"#22d3ee",fontWeight:700,fontSize:13,marginBottom:10}}>① Catene di Markov</div>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+            <div style={{background:"#001a2a",border:"1px solid #22d3ee44",borderRadius:8,padding:"8px 14px",textAlign:"center"}}>
+              <div style={{color:C.dim,fontSize:9}}>STATO ATTUALE</div>
+              <div style={{color:"#22d3ee",fontFamily:"monospace",fontSize:18,fontWeight:900}}>{computed.markov.lastState}</div>
+              <div style={{color:C.dim,fontSize:9}}>{stateLabels[computed.markov.lastState]||""}</div>
+            </div>
+            <div style={{color:C.dim,fontSize:18}}>→</div>
+            <div style={{background:"#001a2a",border:"1px solid #22d3ee44",borderRadius:8,padding:"8px 14px",textAlign:"center"}}>
+              <div style={{color:C.dim,fontSize:9}}>PIÙ PROBABILE</div>
+              <div style={{color:"#FFD700",fontFamily:"monospace",fontSize:18,fontWeight:900}}>{computed.markov.bestNext?.[0]||"—"}</div>
+              <div style={{color:"#FFD700",fontSize:10,fontWeight:700}}>{computed.markov.bestNext?((computed.markov.bestNext[1])*100).toFixed(0):0}%</div>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+            {computed.markov.states.map(s=>{const p=computed.markov.nextProbs[s]||0;const col=stateColors[s]||C.dim;const isBest=s===computed.markov.bestNext?.[0];return(<div key={s} style={{background:isBest?"#FFD70011":"#080816",border:`1px solid ${isBest?"#FFD700":col}33`,borderRadius:7,padding:"6px 8px"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:col,fontSize:10,fontWeight:700}}>{s}</span><span style={{color:isBest?"#FFD700":C.dim,fontSize:10,fontFamily:"monospace"}}>{(p*100).toFixed(0)}%</span></div><div style={{background:"#0a0a18",borderRadius:3,height:4,overflow:"hidden"}}><div style={{background:isBest?"#FFD700":col,height:"100%",width:`${p*100}%`}}/></div><div style={{color:C.dim,fontSize:8,marginTop:2}}>{stateLabels[s]||""}</div></div>);})}
+          </div>
+        </div>
+        <div style={{background:C.card,border:"1px solid #22d3ee33",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:"#22d3ee",fontWeight:700,fontSize:13,marginBottom:10}}>② Analisi Ciclica — Top 10</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {computed.cycles.slice(0,10).map(c=>{const pct=Math.min(c.phase/3*100,100);const col=c.phase>2?C.red:c.phase>1.5?C.orange:C.teal;return(<div key={c.num} style={{display:"flex",alignItems:"center",gap:8}}><Ball num={c.num} color={col} size={28} glow={c.phase>2}/><div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{color:C.dim,fontSize:9}}>ciclo:{c.cycle} · gap:{c.currentGap}</span><span style={{color:col,fontSize:10,fontWeight:700}}>{c.phase}x</span></div><div style={{background:"#0a0a18",borderRadius:3,height:5,overflow:"hidden"}}><div style={{background:col,height:"100%",width:`${pct}%`}}/></div></div></div>);})}
+          </div>
+        </div>
+        <div style={{background:C.card,border:"1px solid #22d3ee33",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:"#22d3ee",fontWeight:700,fontSize:13,marginBottom:10}}>③ Clustering + ④ Entropia</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <div style={{background:"#080816",borderRadius:8,padding:10}}>
+              <div style={{color:C.dim,fontSize:9,marginBottom:4}}>CLUSTER DOMINANTE (ult.30)</div>
+              <div style={{color:ACCENT,fontFamily:"monospace",fontSize:14,fontWeight:900}}>C{computed.clusters.dominant}</div>
+              <div style={{color:C.dim,fontSize:9}}>Σ~{computed.clusters.domInfo.sumBias} · {computed.clusters.domInfo.evensBias}P</div>
+            </div>
+            <div style={{background:computed.entropyData.isChaotic?"#1a0a00":"#001a0a",borderRadius:8,padding:10,border:`1px solid ${computed.entropyData.isChaotic?C.orange:C.green}44`}}>
+              <div style={{color:C.dim,fontSize:9,marginBottom:4}}>FASE ENTROPIA</div>
+              <div style={{color:computed.entropyData.isChaotic?C.orange:C.green,fontFamily:"monospace",fontSize:13,fontWeight:900}}>{computed.entropyData.isChaotic?"CAOTICA":"ORDINATA"}</div>
+              <div style={{color:C.dim,fontSize:9}}>{(computed.entropyData.currentEntropy*100).toFixed(1)}% vs media {(computed.entropyData.avgEntropy*100).toFixed(1)}%</div>
+            </div>
+          </div>
+        </div>
+        <div style={{background:C.card,border:"1px solid #22d3ee33",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:"#22d3ee",fontWeight:700,fontSize:13,marginBottom:6}}>⑤ Score Unificato Avanzato — Top 15</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:6}}>
+            {computed.advScores.slice(0,15).map((s,i)=>{const col=i<5?"#FFD700":i<10?C.orange:C.teal;return(<div key={s.num} style={{background:"#080816",border:`1px solid ${col}33`,borderRadius:8,padding:"8px 10px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><Ball num={s.num} color={col} size={26} glow={i<5}/><div><div style={{color:col,fontFamily:"monospace",fontSize:13,fontWeight:900}}>{s.unified}</div><div style={{color:C.dim,fontSize:8}}>score</div></div></div>
+              {[{l:"ciclo",v:s.cycleScore,c:"#22d3ee"},{l:"bayes",v:s.bayesScore,c:C.purple},{l:"rit",v:s.ritScore,c:C.teal},{l:"freq",v:s.freqScore,c:C.orange}].map(row=>(<div key={row.l} style={{display:"flex",gap:4,alignItems:"center",marginBottom:1}}><span style={{color:C.dim,fontSize:7,width:24}}>{row.l}</span><div style={{flex:1,background:"#0a0a18",borderRadius:2,height:3,overflow:"hidden"}}><div style={{background:row.c,height:"100%",width:`${Math.min(row.v,100)}%`}}/></div><span style={{color:row.c,fontSize:7,width:18,textAlign:"right"}}>{row.v.toFixed(0)}</span></div>))}
+              <div style={{color:C.dim,fontSize:7,marginTop:3}}>rit:{s.rit}</div>
+            </div>);})}
+          </div>
+        </div>
+        <div style={{background:"#001a1a",border:"1px solid #22d3ee22",borderRadius:8,padding:10,fontSize:9,color:"#22d3ee66",lineHeight:1.8}}>
+          Il tab 🔮 Suggeritore usa automaticamente questi score. Riesegui dopo ogni nuova estrazione.
+        </div>
+      </>)}
+    </div>
+  );
+}
 const TABS=[{id:"animazione",icon:"📈",label:"Animazione"},{id:"segnali",icon:"🔬",label:"Segnali & Freq."},{id:"banda",icon:"📐",label:"Banda Adattiva"},{id:"generatore",icon:"🎯",label:"Generatore"},{id:"confronto",icon:"🔁",label:"Confronto"},{id:"estrazioni",icon:"📥",label:"Estrazioni"},{id:"biglietti",icon:"🎫",label:"Biglietti"}];
 
 export default function App(){
