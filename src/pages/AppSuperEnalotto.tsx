@@ -574,14 +574,64 @@ function SSAffinitaPanel({allDraws,ticketSum,sigmaRef,currentSS,selSS,setSelSS})
   );
 }
 
+// ─── CALCOLO SCORE QUALITÀ ────────────────────────────────────────────────────
+function calcQualityScore(nums, allDraws, freq, sigmaReale, muReale){
+  const s = sm(nums);
+  const zS = Math.abs(zOf(s, muReale, sigmaReale));
+  const sumScore = Math.max(0, 30 - zS * 10);
+  const ritMedio = nums.reduce((acc,n)=>{
+    let r=allDraws.length;
+    for(let i=allDraws.length-1;i>=0;i--){if(allDraws[i].nums.includes(n)){r=allDraws.length-1-i;break;}}
+    return acc+r;
+  },0)/nums.length;
+  const ritScore = Math.min(40, (ritMedio/allDraws.length)*80);
+  const expected = allDraws.length*PICK/POOL;
+  const anomaly = nums.reduce((acc,n)=>acc+Math.abs(freq[n]-expected)/expected,0)/nums.length;
+  const anomScore = Math.max(0, 20 - anomaly*20);
+  const evens = nums.filter(n=>n%2===0).length;
+  const pdScore = evens>=2&&evens<=4 ? 10 : 5;
+  return Math.round(sumScore+ritScore+anomScore+pdScore);
+}
+
+function qualityStars(score){
+  if(score>=80) return "⭐⭐⭐⭐⭐";
+  if(score>=65) return "⭐⭐⭐⭐";
+  if(score>=50) return "⭐⭐⭐";
+  if(score>=35) return "⭐⭐";
+  return "⭐";
+}
+
+function qualityLabel(score){
+  if(score>=80) return {l:"ECCELLENTE",c:"#FFD700"};
+  if(score>=65) return {l:"OTTIMA",c:"#4A9E5C"};
+  if(score>=50) return {l:"BUONA",c:"#2BA89A"};
+  if(score>=35) return {l:"DISCRETA",c:"#F07030"};
+  return {l:"BASSA",c:"#C94040"};
+}
+
 function TabSuggeritore(){
   const allDraws=useDraws();
   const series=useMemo(()=>buildSeries(allDraws),[allDraws]);
   const sums=series.map(d=>d.sum);
-  const muReale=avg(sums),sigmaReale=std(sums);
+  const muReale=avg(sums), sigmaReale=std(sums);
+
+  const [winSize,setWinSize]=useState(allDraws.length);
+  const [kBand,setKBand]=useState(1.0);
+  const [ratioMode,setRatioMode]=useState("auto");
+  const [pesoRitardo,setPesoRitardo]=useState(50);
   const [qty,setQty]=useState(5);
   const [results,setResults]=useState([]);
   const [loading,setLoading]=useState(false);
+  const [selSS,setSelSS]=useState({});
+  const [savedIds,setSavedIds]=useState(new Set());
+
+  const winDraws=useMemo(()=>allDraws.slice(-Math.min(winSize,allDraws.length)),[allDraws,winSize]);
+
+  const freq=useMemo(()=>{
+    const f=Array(POOL+1).fill(0);
+    winDraws.forEach(d=>d.nums.forEach(n=>f[n]++));
+    return f;
+  },[winDraws]);
 
   function getRitardo(num){
     for(let i=allDraws.length-1;i>=0;i--){
@@ -590,24 +640,19 @@ function TabSuggeritore(){
     return allDraws.length;
   }
 
-  const freq=useMemo(()=>{
-    const f=Array(POOL+1).fill(0);
-    allDraws.forEach(d=>d.nums.forEach(n=>f[n]++));
-    return f;
-  },[allDraws]);
-
   const scored=useMemo(()=>{
-    const totalOcc=allDraws.length*PICK;
+    const totalOcc=winDraws.length*PICK;
     const expected=totalOcc/POOL;
+    const pw=pesoRitardo/100;
     return Array.from({length:POOL},(_,i)=>{
       const num=i+1;
       const f=freq[num];
       const rit=getRitardo(num);
-      const freqScore=(expected-f)/expected;
+      const freqScore=(expected-f)/Math.max(expected,1);
       const ritScore=rit/allDraws.length;
-      return {num,f,rit,score:freqScore*0.5+ritScore*0.5};
+      return {num,f,rit,score:freqScore*(1-pw)+ritScore*pw};
     }).sort((a,b)=>b.score-a.score);
-  },[freq,allDraws]);
+  },[freq,winDraws,allDraws,pesoRitardo]);
 
   const bestRatio=useMemo(()=>{
     const counts={};
@@ -619,32 +664,32 @@ function TabSuggeritore(){
     return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0]||"3-3";
   },[allDraws]);
 
-  const [targetEvens]=bestRatio.split("-").map(Number);
-  const loB=Math.round(muReale-sigmaReale);
-  const hiB=Math.round(muReale+sigmaReale);
+  const targetEvens=useMemo(()=>{
+    if(ratioMode==="auto") return parseInt(bestRatio.split("-")[0]);
+    return parseInt(ratioMode.split("-")[0]);
+  },[ratioMode,bestRatio]);
+
+  const loB=Math.round(muReale-kBand*sigmaReale);
+  const hiB=Math.round(muReale+kBand*sigmaReale);
 
   const genera=()=>{
-    setLoading(true);
-    setResults([]);
+    setLoading(true);setResults([]);setSelSS({});setSavedIds(new Set());
     setTimeout(()=>{
       const rng=mkRng(Date.now());
       const found=[];
-      const maxAttempts=2000000;
+      const maxAttempts=3000000;
       let sc=0;
-
       const pool=scored.map(s=>s.num);
-      const weights=scored.map(s=>Math.max(0.1,s.score+1));
+      const weights=scored.map(s=>Math.max(0.05,s.score+1));
       const totalW=weights.reduce((a,b)=>a+b,0);
       const cumW=[];
       let acc=0;
       weights.forEach(w=>{acc+=w;cumW.push(acc/totalW);});
-
       function pickWeighted(){
         const r=rng();
         for(let i=0;i<cumW.length;i++) if(r<=cumW[i]) return pool[i];
         return pool[pool.length-1];
       }
-
       while(found.length<qty&&sc<maxAttempts){
         sc++;
         const nums=new Set();
@@ -658,45 +703,102 @@ function TabSuggeritore(){
         if(Math.abs(evens-targetEvens)>1) continue;
         const key=arr.join(",");
         if(found.some(f=>f.nums.join(",")===key)) continue;
-        const anomaly=arr.reduce((acc,n)=>{
-          const expected=allDraws.length*PICK/POOL;
-          return acc+Math.abs(freq[n]-expected)/expected;
+        const anomaly=arr.reduce((a,n)=>{
+          const exp=winDraws.length*PICK/POOL;
+          return a+Math.abs(freq[n]-exp)/Math.max(exp,1);
         },0)/PICK;
-        const ritMedio=arr.reduce((acc,n)=>acc+getRitardo(n),0)/PICK;
-        found.push({nums:arr,sum:s,evens,odds:PICK-evens,anomaly,ritMedio,zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2)});
+        const ritMedio=arr.reduce((a,n)=>a+getRitardo(n),0)/PICK;
+        const quality=calcQualityScore(arr,allDraws,freq,sigmaReale,muReale);
+        const ssSugg=getSSSuggestions(allDraws,s,sigmaReale);
+        const topSS=ssSugg[0]?.num||null;
+        found.push({nums:arr,sum:s,evens,odds:PICK-evens,anomaly,ritMedio,zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2),quality,topSS});
       }
-      found.sort((a,b)=>b.ritMedio-a.ritMedio);
+      found.sort((a,b)=>b.quality-a.quality);
       setResults(found);
       setLoading(false);
     },50);
   };
 
+  const salvaBiglietto=(r,idx)=>{
+    const ss=selSS[idx]||r.topSS;
+    const ticket={
+      id:Date.now()+idx,nums:r.nums,superstar:ss,
+      date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),
+      concorso:allDraws[allDraws.length-1]?.n||0,
+      strategy:"suggeritore",sum:r.sum,
+    };
+    const prev=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");
+    localStorage.setItem(LS_TICKETS_S,JSON.stringify([...prev,ticket]));
+    setSavedIds(prev=>new Set([...prev,idx]));
+    alert(`✅ Salvata in Biglietti!\n${r.nums.join("-")} | SS:${ss||"—"}`);
+  };
+
   const pariDisp=allDraws.slice(-20).map(d=>d.nums.filter(n=>n%2===0).length);
   const avgPD=(pariDisp.reduce((a,b)=>a+b,0)/pariDisp.length).toFixed(1);
+  const ratioOpts=["auto","3-3","4-2","2-4","5-1","1-5"];
 
   return(
     <div>
       <h2 style={{color:"#a78bfa",fontFamily:"Georgia,serif",fontSize:16,marginBottom:12}}>🔮 Suggeritore Scientifico</h2>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8,marginBottom:16}}>
+      <div style={{background:"#0a081a",border:"1px solid #a78bfa33",borderRadius:12,padding:14,marginBottom:16}}>
+        <div style={{color:"#a78bfa",fontWeight:700,fontSize:11,marginBottom:12,letterSpacing:1,textTransform:"uppercase"}}>⚙️ Parametri</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div>
+            <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Finestra analisi</div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {[50,100,200,allDraws.length].map(w=>{
+                const lbl=w===allDraws.length?"Tutte":w;
+                const act=winSize===Math.min(w,allDraws.length);
+                return(<button key={w} onClick={()=>setWinSize(Math.min(w,allDraws.length))} style={{background:act?"#a78bfa22":"transparent",color:act?"#a78bfa":C.dim,border:`1px solid ${act?"#a78bfa":C.border}`,borderRadius:8,padding:"3px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{lbl}</button>);
+              })}
+            </div>
+          </div>
+          <div>
+            <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Banda somma [{loB}–{hiB}]</div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {[0.5,1.0,1.5,2.0].map(k=>{
+                const act=kBand===k;
+                return(<button key={k} onClick={()=>setKBand(k)} style={{background:act?"#a78bfa22":"transparent",color:act?"#a78bfa":C.dim,border:`1px solid ${act?"#a78bfa":C.border}`,borderRadius:8,padding:"3px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>±{k}σ</button>);
+              })}
+            </div>
+          </div>
+          <div>
+            <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Pari/Dispari (storico: {bestRatio})</div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {ratioOpts.map(r=>{
+                const act=ratioMode===r;
+                return(<button key={r} onClick={()=>setRatioMode(r)} style={{background:act?"#a78bfa22":"transparent",color:act?"#a78bfa":C.dim,border:`1px solid ${act?"#a78bfa":C.border}`,borderRadius:8,padding:"3px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{r==="auto"?`Auto(${bestRatio})`:r}</button>);
+              })}
+            </div>
+          </div>
+          <div>
+            <div style={{color:C.dim,fontSize:10,marginBottom:6}}>
+              Peso: <span style={{color:C.teal}}>Rit.{pesoRitardo}%</span> · <span style={{color:C.orange}}>Freq.{100-pesoRitardo}%</span>
+            </div>
+            <input type="range" min={0} max={100} step={10} value={pesoRitardo} onChange={e=>setPesoRitardo(+e.target.value)} style={{width:"100%",accentColor:"#a78bfa",cursor:"pointer"}}/>
+          </div>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8,marginBottom:16}}>
         <div style={{background:"#0e0a1c",border:"1px solid #a78bfa33",borderRadius:10,padding:10}}>
-          <div style={{color:"#a78bfa",fontSize:10,fontWeight:700,marginBottom:4}}>📊 Range Somma (±1σ)</div>
-          <div style={{color:"#fff",fontFamily:"monospace",fontSize:15,fontWeight:900}}>{loB} – {hiB}</div>
-          <div style={{color:C.dim,fontSize:9}}>μ={muReale.toFixed(1)} σ={sigmaReale.toFixed(1)}</div>
+          <div style={{color:"#a78bfa",fontSize:9,fontWeight:700,marginBottom:3}}>RANGE SOMMA</div>
+          <div style={{color:"#fff",fontFamily:"monospace",fontSize:13,fontWeight:900}}>{loB}–{hiB}</div>
+          <div style={{color:C.dim,fontSize:9}}>μ={muReale.toFixed(0)} σ={sigmaReale.toFixed(0)}</div>
         </div>
         <div style={{background:"#0e0a1c",border:"1px solid #a78bfa33",borderRadius:10,padding:10}}>
-          <div style={{color:"#a78bfa",fontSize:10,fontWeight:700,marginBottom:4}}>☯️ Pari/Dispari ottimale</div>
-          <div style={{color:"#fff",fontFamily:"monospace",fontSize:15,fontWeight:900}}>{bestRatio}</div>
-          <div style={{color:C.dim,fontSize:9}}>media ult.20: {avgPD}P</div>
+          <div style={{color:"#a78bfa",fontSize:9,fontWeight:700,marginBottom:3}}>PARI/DISPARI</div>
+          <div style={{color:"#fff",fontFamily:"monospace",fontSize:13,fontWeight:900}}>{ratioMode==="auto"?bestRatio:ratioMode}</div>
+          <div style={{color:C.dim,fontSize:9}}>ult.20: {avgPD}P</div>
         </div>
         <div style={{background:"#0e0a1c",border:"1px solid #a78bfa33",borderRadius:10,padding:10}}>
-          <div style={{color:"#a78bfa",fontSize:10,fontWeight:700,marginBottom:4}}>❄️ Top ritardatari</div>
-          <div style={{color:C.teal,fontFamily:"monospace",fontSize:13,fontWeight:700}}>{scored.slice(0,3).map(s=>s.num).join(" · ")}</div>
-          <div style={{color:C.dim,fontSize:9}}>score composito freq+ritardo</div>
+          <div style={{color:"#a78bfa",fontSize:9,fontWeight:700,marginBottom:3}}>TOP RITARDATARI</div>
+          <div style={{color:C.teal,fontFamily:"monospace",fontSize:11,fontWeight:700}}>{scored.slice(0,3).map(s=>s.num).join(" · ")}</div>
+          <div style={{color:C.dim,fontSize:9}}>win:{winSize===allDraws.length?"∞":winSize}</div>
         </div>
         <div style={{background:"#0e0a1c",border:"1px solid #a78bfa33",borderRadius:10,padding:10}}>
-          <div style={{color:"#a78bfa",fontSize:10,fontWeight:700,marginBottom:4}}>🔢 Estrazioni analizzate</div>
-          <div style={{color:"#fff",fontFamily:"monospace",fontSize:15,fontWeight:900}}>{allDraws.length}</div>
-          <div style={{color:C.dim,fontSize:9}}>dati reali Supabase</div>
+          <div style={{color:"#a78bfa",fontSize:9,fontWeight:700,marginBottom:3}}>ESTRAZIONI</div>
+          <div style={{color:"#fff",fontFamily:"monospace",fontSize:13,fontWeight:900}}>{allDraws.length}</div>
+          <div style={{color:C.dim,fontSize:9}}>Supabase</div>
         </div>
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
@@ -710,41 +812,80 @@ function TabSuggeritore(){
       </button>
       {results.length>0&&(
         <>
-          <div style={{color:C.dim,fontSize:11,marginBottom:10}}>
-            Ordinate per <strong style={{color:"#a78bfa"}}>ritardo medio</strong> decrescente · somma [{loB}–{hiB}] · pari/dispari ±1 da {bestRatio}
+          <div style={{color:C.dim,fontSize:11,marginBottom:12}}>
+            Ordinate per <strong style={{color:"#FFD700"}}>score qualità</strong> · banda [{loB}–{hiB}] · P/D ±1 da {ratioMode==="auto"?bestRatio:ratioMode}
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
             {results.map((r,i)=>{
-              const ritCol=r.ritMedio>allDraws.length*0.3?C.teal:C.orange;
+              const ql=qualityLabel(r.quality);
+              const stars=qualityStars(r.quality);
+              const ssSugg=getSSSuggestions(allDraws,r.sum,sigmaReale);
+              const top3SS=ssSugg.slice(0,3);
+              const chosenSS=selSS[i]||r.topSS;
+              const isSaved=savedIds.has(i);
+              const isBest=i===0;
               return(
-                <div key={i} style={{background:"#080816",border:"1px solid #a78bfa33",borderLeft:"3px solid #a78bfa",borderRadius:10,padding:"12px 14px"}}>
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:8}}>
-                    <span style={{color:"#a78bfa",fontFamily:"monospace",fontSize:11,minWidth:20}}>#{i+1}</span>
+                <div key={i} style={{background:"#080816",border:`2px solid ${isBest?"#FFD70055":"#a78bfa22"}`,borderLeft:`4px solid ${ql.c}`,borderRadius:12,padding:"14px",position:"relative"}}>
+                  {isBest&&<div style={{position:"absolute",top:-10,left:14,background:"#FFD700",color:"#000",fontSize:9,fontWeight:900,padding:"2px 10px",borderRadius:10,letterSpacing:1}}>🏆 MIGLIORE</div>}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{color:"#a78bfa",fontFamily:"monospace",fontSize:11}}>#{i+1}</span>
+                      <span style={{color:ql.c,fontWeight:900,fontSize:13}}>{stars}</span>
+                      <span style={{background:`${ql.c}22`,color:ql.c,borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700}}>{ql.l} {r.quality}/100</span>
+                    </div>
+                    <div style={{background:"#0a0a18",borderRadius:6,height:6,width:80,overflow:"hidden"}}>
+                      <div style={{background:`linear-gradient(90deg,${ql.c},#a78bfa)`,height:"100%",width:`${r.quality}%`}}/>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
                     {r.nums.map(n=>{
                       const rank=scored.findIndex(x=>x.num===n);
                       const col=rank<15?C.teal:rank<40?ACCENT:C.orange;
-                      return <Ball key={n} num={n} color={col} size={36} glow={rank<15}/>;
+                      return <Ball key={n} num={n} color={col} size={38} glow={rank<10}/>;
                     })}
                   </div>
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:12}}>
                     <span style={{background:"#a78bfa22",color:"#a78bfa",borderRadius:5,padding:"2px 8px",fontSize:10,fontFamily:"monospace",fontWeight:700}}>Σ {r.sum}</span>
                     <span style={{background:"#12122a",color:C.dim,borderRadius:5,padding:"2px 8px",fontSize:10}}>{r.evens}P–{r.odds}D</span>
                     <span style={{background:"#12122a",color:Math.abs(parseFloat(r.zScore))<1?C.green:C.orange,borderRadius:5,padding:"2px 8px",fontSize:10}}>z={r.zScore}</span>
-                    <span style={{background:`${ritCol}22`,color:ritCol,borderRadius:5,padding:"2px 8px",fontSize:10}}>rit.medio {r.ritMedio.toFixed(0)}</span>
+                    <span style={{background:`${C.teal}22`,color:C.teal,borderRadius:5,padding:"2px 8px",fontSize:10}}>rit.medio {r.ritMedio.toFixed(0)}</span>
                     <span style={{background:"#12122a",color:C.dim,borderRadius:5,padding:"2px 8px",fontSize:10}}>anomaly {r.anomaly.toFixed(2)}</span>
                   </div>
+                  <div style={{background:"#0a0810",border:"1px solid #FFD70022",borderRadius:10,padding:10,marginBottom:10}}>
+                    <div style={{color:"#FFD700",fontSize:10,fontWeight:700,marginBottom:8}}>⭐ SuperStar consigliato — clicca per scegliere</div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                      {top3SS.map((s,si)=>{
+                        const isCho=chosenSS===s.num;
+                        return(
+                          <div key={s.num} onClick={()=>setSelSS(prev=>({...prev,[i]:s.num}))} style={{textAlign:"center",cursor:"pointer",padding:"6px 8px",background:isCho?"#FFD70018":"#0e0e1c",border:`2px solid ${isCho?"#FFD700":"#2a2a3a"}`,borderRadius:8,boxShadow:isCho?"0 0 10px #FFD70044":"none"}}>
+                            <Ball num={s.num} size={30} gold={isCho} color={isCho?"#FFD700":"#888"} glow={isCho}/>
+                            <div style={{color:isCho?"#FFD700":si===0?"#E8B84B":"#888",fontSize:9,marginTop:3,fontWeight:700}}>{s.pct}%</div>
+                            <div style={{color:C.dim,fontSize:8}}>r.{s.ritardo}</div>
+                          </div>
+                        );
+                      })}
+                      <div style={{display:"flex",alignItems:"center",paddingLeft:8,borderLeft:"1px solid #222",gap:6}}>
+                        <Ball num={chosenSS||"?"} size={32} gold={!!chosenSS} color={chosenSS?"#FFD700":"#444"} glow={!!chosenSS}/>
+                        <span style={{color:"#FFD700",fontFamily:"monospace",fontWeight:700,fontSize:14}}>{chosenSS||"—"}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={()=>salvaBiglietto(r,i)} disabled={isSaved} style={{width:"100%",padding:"10px",background:isSaved?`${C.green}22`:`linear-gradient(135deg,${C.purple},#a78bfa)`,color:isSaved?C.green:"#fff",border:`2px solid ${isSaved?C.green:C.purple}`,borderRadius:10,fontSize:13,fontWeight:700,cursor:isSaved?"default":"pointer",fontFamily:"inherit"}}>
+                    {isSaved?"✅ Salvata in Biglietti":"💾 Salva in Biglietti"}
+                  </button>
                 </div>
               );
             })}
           </div>
           <div style={{marginTop:14,fontSize:9,color:"#333",lineHeight:1.8,borderTop:"1px solid #111",paddingTop:10}}>
-            🔵 Azzurro = top ritardatari · 🟡 Oro = neutro · 🟠 Arancio = relativamente frequente. Il suggeritore ottimizza la scelta secondo criteri statistici storici, senza potere predittivo.
+            Score (0–100): somma vicina alla media (+30) · ritardo medio alto (+40) · bassa anomalia (+20) · P/D bilanciato (+10). Nessun potere predittivo.
           </div>
         </>
       )}
     </div>
   );
 }
+
 
 function TabGeneratore(){
   const allDraws=useDraws();
