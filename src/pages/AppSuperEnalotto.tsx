@@ -6,9 +6,6 @@ import {
 } from "recharts";
 import { supabase } from '../lib/supabase';
 
-// ═══════════════════════════════════════════════════════════════
-// DATI BASE 2026 (fallback se Supabase non risponde)
-// ═══════════════════════════════════════════════════════════════
 const DRAWS_BASE = [
   { n:1,  date:"02/01/2026", nums:[29,33,47,56,69,89], jolly:16, superstar:7 },
   { n:2,  date:"03/01/2026", nums:[16,30,32,43,68,76], jolly:36, superstar:58 },
@@ -577,6 +574,178 @@ function SSAffinitaPanel({allDraws,ticketSum,sigmaRef,currentSS,selSS,setSelSS})
   );
 }
 
+function TabSuggeritore(){
+  const allDraws=useDraws();
+  const series=useMemo(()=>buildSeries(allDraws),[allDraws]);
+  const sums=series.map(d=>d.sum);
+  const muReale=avg(sums),sigmaReale=std(sums);
+  const [qty,setQty]=useState(5);
+  const [results,setResults]=useState([]);
+  const [loading,setLoading]=useState(false);
+
+  function getRitardo(num){
+    for(let i=allDraws.length-1;i>=0;i--){
+      if(allDraws[i].nums.includes(num)) return allDraws.length-1-i;
+    }
+    return allDraws.length;
+  }
+
+  const freq=useMemo(()=>{
+    const f=Array(POOL+1).fill(0);
+    allDraws.forEach(d=>d.nums.forEach(n=>f[n]++));
+    return f;
+  },[allDraws]);
+
+  const scored=useMemo(()=>{
+    const totalOcc=allDraws.length*PICK;
+    const expected=totalOcc/POOL;
+    return Array.from({length:POOL},(_,i)=>{
+      const num=i+1;
+      const f=freq[num];
+      const rit=getRitardo(num);
+      const freqScore=(expected-f)/expected;
+      const ritScore=rit/allDraws.length;
+      return {num,f,rit,score:freqScore*0.5+ritScore*0.5};
+    }).sort((a,b)=>b.score-a.score);
+  },[freq,allDraws]);
+
+  const bestRatio=useMemo(()=>{
+    const counts={};
+    allDraws.forEach(d=>{
+      const e=d.nums.filter(n=>n%2===0).length;
+      const key=`${e}-${PICK-e}`;
+      counts[key]=(counts[key]||0)+1;
+    });
+    return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0]||"3-3";
+  },[allDraws]);
+
+  const [targetEvens]=bestRatio.split("-").map(Number);
+  const loB=Math.round(muReale-sigmaReale);
+  const hiB=Math.round(muReale+sigmaReale);
+
+  const genera=()=>{
+    setLoading(true);
+    setResults([]);
+    setTimeout(()=>{
+      const rng=mkRng(Date.now());
+      const found=[];
+      const maxAttempts=2000000;
+      let sc=0;
+
+      const pool=scored.map(s=>s.num);
+      const weights=scored.map(s=>Math.max(0.1,s.score+1));
+      const totalW=weights.reduce((a,b)=>a+b,0);
+      const cumW=[];
+      let acc=0;
+      weights.forEach(w=>{acc+=w;cumW.push(acc/totalW);});
+
+      function pickWeighted(){
+        const r=rng();
+        for(let i=0;i<cumW.length;i++) if(r<=cumW[i]) return pool[i];
+        return pool[pool.length-1];
+      }
+
+      while(found.length<qty&&sc<maxAttempts){
+        sc++;
+        const nums=new Set();
+        let attempts=0;
+        while(nums.size<PICK&&attempts<200){nums.add(pickWeighted());attempts++;}
+        if(nums.size<PICK) continue;
+        const arr=[...nums].sort((a,b)=>a-b);
+        const s=sm(arr);
+        if(s<loB||s>hiB) continue;
+        const evens=arr.filter(n=>n%2===0).length;
+        if(Math.abs(evens-targetEvens)>1) continue;
+        const key=arr.join(",");
+        if(found.some(f=>f.nums.join(",")===key)) continue;
+        const anomaly=arr.reduce((acc,n)=>{
+          const expected=allDraws.length*PICK/POOL;
+          return acc+Math.abs(freq[n]-expected)/expected;
+        },0)/PICK;
+        const ritMedio=arr.reduce((acc,n)=>acc+getRitardo(n),0)/PICK;
+        found.push({nums:arr,sum:s,evens,odds:PICK-evens,anomaly,ritMedio,zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2)});
+      }
+      found.sort((a,b)=>b.ritMedio-a.ritMedio);
+      setResults(found);
+      setLoading(false);
+    },50);
+  };
+
+  const pariDisp=allDraws.slice(-20).map(d=>d.nums.filter(n=>n%2===0).length);
+  const avgPD=(pariDisp.reduce((a,b)=>a+b,0)/pariDisp.length).toFixed(1);
+
+  return(
+    <div>
+      <h2 style={{color:"#a78bfa",fontFamily:"Georgia,serif",fontSize:16,marginBottom:12}}>🔮 Suggeritore Scientifico</h2>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8,marginBottom:16}}>
+        <div style={{background:"#0e0a1c",border:"1px solid #a78bfa33",borderRadius:10,padding:10}}>
+          <div style={{color:"#a78bfa",fontSize:10,fontWeight:700,marginBottom:4}}>📊 Range Somma (±1σ)</div>
+          <div style={{color:"#fff",fontFamily:"monospace",fontSize:15,fontWeight:900}}>{loB} – {hiB}</div>
+          <div style={{color:C.dim,fontSize:9}}>μ={muReale.toFixed(1)} σ={sigmaReale.toFixed(1)}</div>
+        </div>
+        <div style={{background:"#0e0a1c",border:"1px solid #a78bfa33",borderRadius:10,padding:10}}>
+          <div style={{color:"#a78bfa",fontSize:10,fontWeight:700,marginBottom:4}}>☯️ Pari/Dispari ottimale</div>
+          <div style={{color:"#fff",fontFamily:"monospace",fontSize:15,fontWeight:900}}>{bestRatio}</div>
+          <div style={{color:C.dim,fontSize:9}}>media ult.20: {avgPD}P</div>
+        </div>
+        <div style={{background:"#0e0a1c",border:"1px solid #a78bfa33",borderRadius:10,padding:10}}>
+          <div style={{color:"#a78bfa",fontSize:10,fontWeight:700,marginBottom:4}}>❄️ Top ritardatari</div>
+          <div style={{color:C.teal,fontFamily:"monospace",fontSize:13,fontWeight:700}}>{scored.slice(0,3).map(s=>s.num).join(" · ")}</div>
+          <div style={{color:C.dim,fontSize:9}}>score composito freq+ritardo</div>
+        </div>
+        <div style={{background:"#0e0a1c",border:"1px solid #a78bfa33",borderRadius:10,padding:10}}>
+          <div style={{color:"#a78bfa",fontSize:10,fontWeight:700,marginBottom:4}}>🔢 Estrazioni analizzate</div>
+          <div style={{color:"#fff",fontFamily:"monospace",fontSize:15,fontWeight:900}}>{allDraws.length}</div>
+          <div style={{color:C.dim,fontSize:9}}>dati reali Supabase</div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+        <span style={{color:C.dim,fontSize:11}}>Combinazioni:</span>
+        {[1,3,5,10,15,20].map(n=>(
+          <button key={n} onClick={()=>setQty(n)} style={{background:qty===n?"#a78bfa22":"transparent",color:qty===n?"#a78bfa":C.dim,border:`1px solid ${qty===n?"#a78bfa":C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>
+        ))}
+      </div>
+      <button onClick={genera} disabled={loading} style={{width:"100%",padding:"13px",background:loading?"#1a1a2e":"linear-gradient(135deg,#a78bfa,#6366f1)",color:loading?"#555":"#fff",border:"none",borderRadius:10,fontSize:16,fontWeight:900,cursor:loading?"not-allowed":"pointer",fontFamily:"Georgia,serif",marginBottom:16}}>
+        {loading?"⏳ Generazione in corso...":"🔮 Genera Suggerimenti"}
+      </button>
+      {results.length>0&&(
+        <>
+          <div style={{color:C.dim,fontSize:11,marginBottom:10}}>
+            Ordinate per <strong style={{color:"#a78bfa"}}>ritardo medio</strong> decrescente · somma [{loB}–{hiB}] · pari/dispari ±1 da {bestRatio}
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {results.map((r,i)=>{
+              const ritCol=r.ritMedio>allDraws.length*0.3?C.teal:C.orange;
+              return(
+                <div key={i} style={{background:"#080816",border:"1px solid #a78bfa33",borderLeft:"3px solid #a78bfa",borderRadius:10,padding:"12px 14px"}}>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:8}}>
+                    <span style={{color:"#a78bfa",fontFamily:"monospace",fontSize:11,minWidth:20}}>#{i+1}</span>
+                    {r.nums.map(n=>{
+                      const rank=scored.findIndex(x=>x.num===n);
+                      const col=rank<15?C.teal:rank<40?ACCENT:C.orange;
+                      return <Ball key={n} num={n} color={col} size={36} glow={rank<15}/>;
+                    })}
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <span style={{background:"#a78bfa22",color:"#a78bfa",borderRadius:5,padding:"2px 8px",fontSize:10,fontFamily:"monospace",fontWeight:700}}>Σ {r.sum}</span>
+                    <span style={{background:"#12122a",color:C.dim,borderRadius:5,padding:"2px 8px",fontSize:10}}>{r.evens}P–{r.odds}D</span>
+                    <span style={{background:"#12122a",color:Math.abs(parseFloat(r.zScore))<1?C.green:C.orange,borderRadius:5,padding:"2px 8px",fontSize:10}}>z={r.zScore}</span>
+                    <span style={{background:`${ritCol}22`,color:ritCol,borderRadius:5,padding:"2px 8px",fontSize:10}}>rit.medio {r.ritMedio.toFixed(0)}</span>
+                    <span style={{background:"#12122a",color:C.dim,borderRadius:5,padding:"2px 8px",fontSize:10}}>anomaly {r.anomaly.toFixed(2)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{marginTop:14,fontSize:9,color:"#333",lineHeight:1.8,borderTop:"1px solid #111",paddingTop:10}}>
+            🔵 Azzurro = top ritardatari · 🟡 Oro = neutro · 🟠 Arancio = relativamente frequente. Il suggeritore ottimizza la scelta secondo criteri statistici storici, senza potere predittivo.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function TabGeneratore(){
   const allDraws=useDraws();
   const series=useMemo(()=>buildSeries(allDraws),[allDraws]);
@@ -636,7 +805,6 @@ function TabGeneratore(){
           let decOk=true;decineAttive.forEach((cnt,idx)=>{const inDec=nums.filter(n=>n>=DEC[idx].min&&n<=DEC[idx].max).length;if(inDec!==cnt)decOk=false;});
           if(!decOk)continue;
         }
-        // Evita duplicati
         const key=nums.join(",");
         if(found.some(f=>f.nums.join(",")===key))continue;
         found.push({nums,sum:s,evens,odds,zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2)});
@@ -818,7 +986,6 @@ function TabGeneratore(){
             {results.filter(r=>selectedTattico.has(r.nums.join(","))).map((r,idx)=>{
               const k=r.nums.join(",");
               const top=getSSSuggestions(allDraws,r.sum,sigmaReale).slice(0,10);
-              const maxScore=Math.max(...top.map(t=>t.score));
               const chosen=chosenSSTattico[k];
               return(
                 <div key={idx} style={{background:"#080816",border:`1px solid ${C.purple}33`,borderRadius:10,padding:12,marginBottom:12}}>
@@ -845,7 +1012,7 @@ function TabGeneratore(){
                 </div>
               );
             })}
-            <button onClick={()=>{setShowSSTattico(false);}} style={{background:"transparent",color:C.dim,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer"}}>← Torna alla lista</button>
+            <button onClick={()=>setShowSSTattico(false)} style={{background:"transparent",color:C.dim,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer"}}>← Torna alla lista</button>
           </div>
         )}
       </div>)}
@@ -943,7 +1110,6 @@ function TabEstrazioni({onUpdate}){
     const newDraw={n,date:date.trim(),nums:[...new Set(pNums)].sort((a,b)=>a-b)};
     if(j>=1&&j<=90)newDraw.jolly=j;
     if(ss>=1&&ss<=90)newDraw.superstar=ss;
-    // Salva in Supabase
     setSavingToDb(true);
     try{
       const dateIso=date.trim().split("/").length===2?`2026-${date.trim().split("/")[1].padStart(2,"0")}-${date.trim().split("/")[0].padStart(2,"0")}`:date.trim();
@@ -1064,6 +1230,7 @@ const TABS=[
   {id:"segnali",icon:"🔬",label:"Segnali & Freq."},
   {id:"banda",icon:"📐",label:"Banda Adattiva"},
   {id:"generatore",icon:"🎯",label:"Generatore"},
+  {id:"suggeritore",icon:"🔮",label:"Suggeritore"},
   {id:"confronto",icon:"🔁",label:"Confronto"},
   {id:"estrazioni",icon:"📥",label:"Estrazioni"},
   {id:"biglietti",icon:"🎫",label:"Biglietti"},
@@ -1075,7 +1242,6 @@ export default function App(){
   const [loading,setLoading]=useState(true);
   const [extraDraws,setExtraDraws]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS_KEY_S)||"[]");}catch{return [];}});
 
-  // Carica da Supabase
   useEffect(()=>{
     async function loadDraws(){
       try{
@@ -1142,12 +1308,13 @@ export default function App(){
           </div>)}
         </div>
         <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`}}>
-          {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?`linear-gradient(135deg,${t.id==="biglietti"?C.purple:ACCENT},#2BA89A)`:"transparent",color:tab===t.id?"#fff":C.dim,border:tab===t.id?"none":`1px solid ${C.border}`,borderRadius:20,padding:"7px 10px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{t.icon} {t.label}</button>))}
+          {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?`linear-gradient(135deg,${t.id==="biglietti"?C.purple:t.id==="suggeritore"?"#a78bfa":ACCENT},#2BA89A)`:"transparent",color:tab===t.id?"#fff":C.dim,border:tab===t.id?"none":`1px solid ${C.border}`,borderRadius:20,padding:"7px 10px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{t.icon} {t.label}</button>))}
         </div>
         {tab==="animazione"&&<TabAnimazione/>}
         {tab==="segnali"&&<TabSegnali/>}
         {tab==="banda"&&<TabBanda/>}
         {tab==="generatore"&&<TabGeneratore/>}
+        {tab==="suggeritore"&&<TabSuggeritore/>}
         {tab==="confronto"&&<TabConfronto/>}
         {tab==="estrazioni"&&<TabEstrazioni onUpdate={handleUpdate}/>}
         {tab==="biglietti"&&<TabBiglietti/>}
