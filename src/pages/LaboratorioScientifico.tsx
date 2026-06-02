@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 
 // ─── CONFIG ────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://ubbivjwsgqnwuxswxejm.supabase.co";
-const SUPABASE_KEY = "YOUR_ANON_KEY_HERE"; // <-- sostituire con la anon key
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const LOTTERIES = {
   superenalotto: { label: "SuperEnalotto", cols: ["n1","n2","n3","n4","n5","n6"], max: 90, size: 6, color: "#f59e0b" },
