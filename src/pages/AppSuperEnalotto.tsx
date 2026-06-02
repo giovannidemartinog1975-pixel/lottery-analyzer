@@ -1165,7 +1165,8 @@ function TabSuggeritore(){
           return a+Math.abs(freq[n]-exp)/Math.max(exp,1);
         },0)/PICK;
         const ritMedio=arr.reduce((a,n)=>a+getRitardo(n),0)/PICK;
-        const quality=calcQualityScore(arr,allDraws,freq,sigmaReale,muReale);
+        const advScoresLocal=computeAdvancedScores(allDraws,muReale,sigmaReale);
+        const quality=calcQualityScoreAdvanced(arr,allDraws,freq,sigmaReale,muReale,advScoresLocal);
         const ssSugg=getSSSuggestions(allDraws,s,sigmaReale);
         const topSS=ssSugg[0]?.num||null;
         found.push({nums:arr,sum:s,evens,odds:PICK-evens,anomaly,ritMedio,zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2),quality,topSS});
