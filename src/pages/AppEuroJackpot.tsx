@@ -1513,8 +1513,18 @@ function TabGeneratoreUnificatoEJ() {
     </div>
   );
 }
-const TABS=[{id:"animazione",icon:"📈",label:"Animazione"},{id:"segnali",icon:"🔬",label:"Segnali & Freq."},{id:"banda",icon:"📐",label:"Banda Adattiva"},{id:"generatore",icon:"🎯",label:"Generatore"},{id:"confronto",icon:"🔁",label:"Confronto"},{id:"estrazioni",icon:"📥",label:"Estrazioni"},{id:"biglietti",icon:"🎫",label:"Biglietti"}];
-
+const TABS=[
+  {id:"animazione",icon:"📈",label:"Animazione"},
+  {id:"segnali",icon:"🔬",label:"Segnali & Freq."},
+  {id:"banda",icon:"📐",label:"Banda Adattiva"},
+  {id:"generatore",icon:"🎯",label:"Generatore"},
+  {id:"suggeritore",icon:"🔮",label:"Suggeritore"},
+  {id:"analisi",icon:"🧬",label:"Analisi"},
+  {id:"unificato",icon:"⭐",label:"Unificato"},
+  {id:"confronto",icon:"🔁",label:"Confronto"},
+  {id:"estrazioni",icon:"📥",label:"Estrazioni"},
+  {id:"biglietti",icon:"🎫",label:"Biglietti"},
+];
 export default function App(){
   const [tab,setTab]=useState("animazione");
   const [dbDraws,setDbDraws]=useState([]);const [loading,setLoading]=useState(true);
