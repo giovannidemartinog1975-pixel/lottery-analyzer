@@ -2345,7 +2345,7 @@ function TabPredittivo() {
   );
 }
 // ═══════════════════════════════════════════════════════════════
-// GENERATORE UNIFICATO — inserire prima della costante TABS
+// GENERATORE UNIFICATO v2 — inserire prima della costante TABS
 // ═══════════════════════════════════════════════════════════════
 
 function TabGeneratoreUnificato() {
@@ -2357,6 +2357,7 @@ function TabGeneratoreUnificato() {
   const [qty, setQty] = useState(5);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
+  const [advScoresRef, setAdvScoresRef] = useState([]);
   const [selSS, setSelSS] = useState({});
   const [savedIds, setSavedIds] = useState(new Set());
   const [progress, setProgress] = useState("");
@@ -2368,18 +2369,15 @@ function TabGeneratoreUnificato() {
     setProgress("⚙️ Calcolo modelli...");
 
     setTimeout(() => {
-      // Calcola tutti i modelli UNA SOLA VOLTA
       const advScores = computeAdvancedScores(allDraws, muReale, sigmaReale);
       const ensembleScores = computeEnsemblePredictive(allDraws, muReale, sigmaReale);
       const pairData = computePairCorrelations(allDraws);
       const regression = computeRegression(allDraws);
       const lstm = computeLSTM(allDraws);
 
-      // Precalcola freq una volta sola
-      const freq = Array(POOL + 1).fill(0);
-      allDraws.forEach(d => d.nums.forEach(n => freq[n]++));
+      // Salva advScores nello state per usarlo nel render
+      setAdvScoresRef(advScores);
 
-      // Precalcola ritardi una volta sola
       const ritardi = Array.from({length: POOL}, (_, i) => {
         const num = i + 1;
         for (let j = allDraws.length - 1; j >= 0; j--) {
@@ -2392,21 +2390,19 @@ function TabGeneratoreUnificato() {
 
       setTimeout(() => {
         const rng = mkRng(Date.now());
-        const CAND = 40; // candidati per strategia
+        const CAND = 40;
         const allCandidates = [];
         const seenKeys = new Set();
 
         const loB = Math.min(Math.round(muReale - sigmaReale), regression.predictedRange.lo, lstm.predictedRange.lo);
         const hiB = Math.max(Math.round(muReale + sigmaReale), regression.predictedRange.hi, lstm.predictedRange.hi);
 
-        // Funzione generatore generico con pool pesato
         function genCandidates(weights, strategy, count) {
           const pool = Array.from({length: POOL}, (_, i) => i + 1);
           const totalW = weights.reduce((a, b) => a + b, 0);
           const cumW = []; let acc = 0;
           weights.forEach(w => { acc += w; cumW.push(acc / totalW); });
-          function pick() { const r = rng(); for (let i = 0; i < cumW.length; i++) if (r <= cumW[i]) return pool[i]; return pool[pool.length - 1]; }
-
+          function pick() { const r = rng(); for (let i = 0; i < cumW.length; i++) if (r <= cumW[i]) return pool[i]; return pool[pool.length-1]; }
           let sc = 0;
           while (allCandidates.filter(c => c.strategy === strategy).length < count && sc < 300000) {
             sc++;
@@ -2423,84 +2419,53 @@ function TabGeneratoreUnificato() {
           }
         }
 
-        // Strategia 1: score avanzato
-        const wAdv = Array.from({length: POOL}, (_, i) => {
-          const a = advScores.find(x => x.num === i + 1);
-          return Math.max(0.05, (a ? a.unified : 0) / 100 + 0.3);
-        });
+        const wAdv = Array.from({length: POOL}, (_, i) => Math.max(0.05, ((advScores.find(x=>x.num===i+1)?.unified||0)/100)+0.3));
         genCandidates(wAdv, "adv", CAND);
 
-        // Strategia 2: ensemble predittivo
-        const wEns = Array.from({length: POOL}, (_, i) => {
-          const e = ensembleScores.find(x => x.num === i + 1);
-          return Math.max(0.05, (e ? e.ensemble : 0) / 100 + 0.3);
-        });
+        const wEns = Array.from({length: POOL}, (_, i) => Math.max(0.05, ((ensembleScores.find(x=>x.num===i+1)?.ensemble||0)/100)+0.3));
         genCandidates(wEns, "ens", CAND);
 
-        // Strategia 3: combinato
         const wComb = Array.from({length: POOL}, (_, i) => {
-          const a = advScores.find(x => x.num === i + 1);
-          const e = ensembleScores.find(x => x.num === i + 1);
-          return Math.max(0.05, ((a ? a.unified : 0) + (e ? e.ensemble : 0)) / 200 + 0.3);
+          const a = advScores.find(x=>x.num===i+1)?.unified||0;
+          const e = ensembleScores.find(x=>x.num===i+1)?.ensemble||0;
+          return Math.max(0.05, (a+e)/200+0.3);
         });
         genCandidates(wComb, "comb", CAND);
 
         setProgress("📊 Score finale...");
 
         setTimeout(() => {
-          // Score finale per ogni candidato (usando dati precalcolati)
           const scored = allCandidates.map(c => {
             const s = c.nums.reduce((a, b) => a + b, 0);
-
-            // 1. Score avanzato 40%
-            const advMean = c.nums.reduce((acc, n) => {
-              const a = advScores.find(x => x.num === n);
-              return acc + (a ? a.unified : 0);
-            }, 0) / c.nums.length;
-            const advS = (advMean / 100) * 40;
-
-            // 2. Score ensemble 35%
-            const ensMean = c.nums.reduce((acc, n) => {
-              const e = ensembleScores.find(x => x.num === n);
-              return acc + (e ? e.ensemble : 0);
-            }, 0) / c.nums.length;
-            const ensS = (ensMean / 100) * 35;
-
-            // 3. Coppie 15%
+            const advMean = c.nums.reduce((acc,n)=>acc+(advScores.find(x=>x.num===n)?.unified||0),0)/c.nums.length;
+            const advS = (advMean/100)*40;
+            const ensMean = c.nums.reduce((acc,n)=>acc+(ensembleScores.find(x=>x.num===n)?.ensemble||0),0)/c.nums.length;
+            const ensS = (ensMean/100)*35;
             let pairB = 0;
-            for (let i = 0; i < c.nums.length; i++)
-              for (let j = i + 1; j < c.nums.length; j++) {
-                const p = pairData.topPairs.find(x => x.nums[0] === c.nums[i] && x.nums[1] === c.nums[j]);
-                if (p) pairB += Math.max(0, p.z);
-              }
-            const pairS = Math.min(pairB / 10, 1) * 15;
-
-            // 4. Distanza somma predetta 10%
-            const distS = Math.max(0, 10 - Math.abs(s - regression.predicted) / Math.max(sigmaReale, 1) * 5);
-
-            const total = advS + ensS + pairS + distS;
-            const evens = c.nums.filter(n => n % 2 === 0).length;
-            const ritMedio = c.nums.reduce((acc, n) => acc + ritardi[n - 1], 0) / c.nums.length;
-
+            for(let i=0;i<c.nums.length;i++) for(let j=i+1;j<c.nums.length;j++){
+              const p=pairData.topPairs.find(x=>x.nums[0]===c.nums[i]&&x.nums[1]===c.nums[j]);
+              if(p) pairB+=Math.max(0,p.z);
+            }
+            const pairS = Math.min(pairB/10,1)*15;
+            const distS = Math.max(0,10-Math.abs(s-regression.predicted)/Math.max(sigmaReale,1)*5);
+            const total = advS+ensS+pairS+distS;
+            const evens = c.nums.filter(n=>n%2===0).length;
+            const ritMedio = Math.round(c.nums.reduce((acc,n)=>acc+ritardi[n-1],0)/c.nums.length);
             return {
-              ...c, sum: s,
-              total: parseFloat(total.toFixed(1)),
-              advS: parseFloat(advS.toFixed(1)),
-              ensS: parseFloat(ensS.toFixed(1)),
-              pairS: parseFloat(pairS.toFixed(1)),
-              distS: parseFloat(distS.toFixed(1)),
-              zScore: zOf(s, MU_TEO, SIGMA_TEO).toFixed(2),
-              evens, odds: PICK - evens,
-              ritMedio: Math.round(ritMedio),
-              pairBonus: parseFloat(pairB.toFixed(2)),
-              topSS: getSSSuggestions(allDraws, s, sigmaReale)[0]?.num || null,
+              ...c, sum:s,
+              total:parseFloat(total.toFixed(1)),
+              advS:parseFloat(advS.toFixed(1)),
+              ensS:parseFloat(ensS.toFixed(1)),
+              pairS:parseFloat(pairS.toFixed(1)),
+              distS:parseFloat(distS.toFixed(1)),
+              zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2),
+              evens, odds:PICK-evens, ritMedio,
+              pairBonus:parseFloat(pairB.toFixed(2)),
+              topSS:getSSSuggestions(allDraws,s,sigmaReale)[0]?.num||null,
             };
           });
-
-          const top = scored.sort((a, b) => b.total - a.total).slice(0, qty);
-          setResults(top);
-          setProgress("");
-          setLoading(false);
+          setResults(scored.sort((a,b)=>b.total-a.total).slice(0,qty));
+          setProgress(""); setLoading(false);
         }, 50);
       }, 50);
     }, 100);
@@ -2508,149 +2473,114 @@ function TabGeneratoreUnificato() {
 
   const salvaBiglietto = (r, idx) => {
     const ss = selSS[idx] || r.topSS;
-    const ticket = {
-      id: Date.now() + idx, nums: r.nums, superstar: ss,
-      date: new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" }),
-      concorso: allDraws[allDraws.length - 1]?.n || 0,
-      strategy: "unificato", sum: r.sum,
-    };
-    const prev = JSON.parse(localStorage.getItem(LS_TICKETS_S) || "[]");
-    localStorage.setItem(LS_TICKETS_S, JSON.stringify([...prev, ticket]));
-    setSavedIds(prev => new Set([...prev, idx]));
-    alert(`✅ Salvata!\n${r.nums.join("-")} | SS:${ss || "—"}`);
+    const ticket = { id:Date.now()+idx, nums:r.nums, superstar:ss, date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}), concorso:allDraws[allDraws.length-1]?.n||0, strategy:"unificato", sum:r.sum };
+    const prev = JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");
+    localStorage.setItem(LS_TICKETS_S, JSON.stringify([...prev,ticket]));
+    setSavedIds(prev=>new Set([...prev,idx]));
+    alert(`✅ Salvata!\n${r.nums.join("-")} | SS:${ss||"—"}`);
   };
 
-  const strategyIcon = s => s === "adv" ? "🧬" : s === "ens" ? "🔬" : "⭐";
-  const strategyLabel = s => s === "adv" ? "Avanzato" : s === "ens" ? "Predittivo" : "Combinato";
+  const strategyIcon = s => s==="adv"?"🧬":s==="ens"?"🔬":"⭐";
+  const strategyLabel = s => s==="adv"?"Avanzato":s==="ens"?"Predittivo":"Combinato";
 
   return (
     <div>
-      <h2 style={{ color: GEN_COLOR, fontFamily: "Georgia,serif", fontSize: 16, marginBottom: 8 }}>⭐ Generatore Unificato</h2>
-      <div style={{ background: "#1a0e00", border: `1px solid ${GEN_COLOR}44`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
-        <div style={{ color: GEN_COLOR, fontWeight: 700, fontSize: 11, marginBottom: 8, letterSpacing: 1 }}>COME FUNZIONA</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, marginBottom: 10 }}>
-          {[
-            { icon: "🧬", label: "Avanzato", pct: "40%" },
-            { icon: "🔬", label: "Predittivo", pct: "35%" },
-            { icon: "🔗", label: "Coppie", pct: "15%" },
-            { icon: "📐", label: "Somma", pct: "10%" },
-          ].map(m => (
-            <div key={m.label} style={{ background: "#0a0800", border: `1px solid ${GEN_COLOR}22`, borderRadius: 8, padding: "6px", textAlign: "center" }}>
-              <div style={{ fontSize: 14 }}>{m.icon}</div>
-              <div style={{ color: GEN_COLOR, fontSize: 9, fontWeight: 700 }}>{m.label}</div>
-              <div style={{ background: `${GEN_COLOR}33`, color: GEN_COLOR, borderRadius: 10, padding: "1px 5px", fontSize: 9, fontWeight: 900, marginTop: 2 }}>{m.pct}</div>
+      <h2 style={{color:GEN_COLOR,fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>⭐ Generatore Unificato</h2>
+      <div style={{background:"#1a0e00",border:`1px solid ${GEN_COLOR}44`,borderRadius:12,padding:14,marginBottom:16}}>
+        <div style={{color:GEN_COLOR,fontWeight:700,fontSize:11,marginBottom:8,letterSpacing:1}}>COME FUNZIONA</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
+          {[{icon:"🧬",label:"Avanzato",pct:"40%"},{icon:"🔬",label:"Predittivo",pct:"35%"},{icon:"🔗",label:"Coppie",pct:"15%"},{icon:"📐",label:"Somma",pct:"10%"}].map(m=>(
+            <div key={m.label} style={{background:"#0a0800",border:`1px solid ${GEN_COLOR}22`,borderRadius:8,padding:"6px",textAlign:"center"}}>
+              <div style={{fontSize:14}}>{m.icon}</div>
+              <div style={{color:GEN_COLOR,fontSize:9,fontWeight:700}}>{m.label}</div>
+              <div style={{background:`${GEN_COLOR}33`,color:GEN_COLOR,borderRadius:10,padding:"1px 5px",fontSize:9,fontWeight:900,marginTop:2}}>{m.pct}</div>
             </div>
           ))}
         </div>
-        <div style={{ color: C.dim, fontSize: 10, lineHeight: 1.6 }}>
-          Genera <strong style={{ color: GEN_COLOR }}>120 sestine candidate</strong> con 3 strategie, calcola lo score finale unificato e restituisce le migliori.
-        </div>
+        <div style={{color:C.dim,fontSize:10,lineHeight:1.6}}>Genera <strong style={{color:GEN_COLOR}}>120 sestine candidate</strong> con 3 strategie, calcola lo score finale unificato e restituisce le migliori.</div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
-        <span style={{ color: C.dim, fontSize: 11 }}>Risultati:</span>
-        {[3, 5, 10, 15].map(n => (
-          <button key={n} onClick={() => setQty(n)} style={{ background: qty === n ? `${GEN_COLOR}22` : "transparent", color: qty === n ? GEN_COLOR : C.dim, border: `1px solid ${qty === n ? GEN_COLOR : C.border}`, borderRadius: 14, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>{n}</button>
-        ))}
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+        <span style={{color:C.dim,fontSize:11}}>Risultati:</span>
+        {[3,5,10,15].map(n=>(<button key={n} onClick={()=>setQty(n)} style={{background:qty===n?`${GEN_COLOR}22`:"transparent",color:qty===n?GEN_COLOR:C.dim,border:`1px solid ${qty===n?GEN_COLOR:C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>))}
       </div>
 
-      <button onClick={genera} disabled={loading} style={{ width: "100%", padding: "14px", background: loading ? "#1a0e00" : `linear-gradient(135deg,${GEN_COLOR},#d97706)`, color: loading ? "#555" : "#000", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 900, cursor: loading ? "not-allowed" : "pointer", fontFamily: "Georgia,serif", marginBottom: 12 }}>
-        {loading ? progress || "⏳ Elaborazione..." : "⭐ Genera Sestine Ottimali"}
+      <button onClick={genera} disabled={loading} style={{width:"100%",padding:"14px",background:loading?"#1a0e00":`linear-gradient(135deg,${GEN_COLOR},#d97706)`,color:loading?"#555":"#000",border:"none",borderRadius:10,fontSize:16,fontWeight:900,cursor:loading?"not-allowed":"pointer",fontFamily:"Georgia,serif",marginBottom:12}}>
+        {loading?progress||"⏳ Elaborazione...":"⭐ Genera Sestine Ottimali"}
       </button>
 
-      {results.length > 0 && (
+      {results.length>0&&(
         <>
-          <div style={{ color: C.dim, fontSize: 11, marginBottom: 12 }}>
-            <strong style={{ color: GEN_COLOR }}>{results.length} migliori</strong> su 120 candidate · score finale unificato
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {results.map((r, i) => {
-              const isBest = i === 0;
-              const top3SS = getSSSuggestions(allDraws, r.sum, sigmaReale).slice(0, 3);
-              const chosenSS = selSS[i] || r.topSS;
-              const isSaved = savedIds.has(i);
-              const scoreColor = r.total >= 70 ? "#FFD700" : r.total >= 55 ? C.green : r.total >= 40 ? C.teal : C.orange;
-
-              return (
-                <div key={i} style={{ background: "#080810", border: `2px solid ${isBest ? `${GEN_COLOR}88` : `${GEN_COLOR}22`}`, borderLeft: `4px solid ${scoreColor}`, borderRadius: 12, padding: "14px", position: "relative" }}>
-                  {isBest && <div style={{ position: "absolute", top: -10, left: 14, background: GEN_COLOR, color: "#000", fontSize: 9, fontWeight: 900, padding: "2px 10px", borderRadius: 10 }}>🏆 MIGLIORE</div>}
-
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ color: GEN_COLOR, fontFamily: "monospace", fontSize: 11 }}>#{i + 1}</span>
-                      <span style={{ background: `${scoreColor}22`, color: scoreColor, borderRadius: 6, padding: "2px 10px", fontSize: 11, fontWeight: 900 }}>Score {r.total}/100</span>
-                      <span style={{ background: "#1a1a2a", color: C.dim, borderRadius: 5, padding: "2px 7px", fontSize: 9 }}>{strategyIcon(r.strategy)} {strategyLabel(r.strategy)}</span>
+          <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su 120 candidate · score finale unificato</div>
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            {results.map((r,i)=>{
+              const isBest=i===0;
+              const top3SS=getSSSuggestions(allDraws,r.sum,sigmaReale).slice(0,3);
+              const chosenSS=selSS[i]||r.topSS;
+              const isSaved=savedIds.has(i);
+              const scoreColor=r.total>=70?"#FFD700":r.total>=55?C.green:r.total>=40?C.teal:C.orange;
+              return(
+                <div key={i} style={{background:"#080810",border:`2px solid ${isBest?`${GEN_COLOR}88`:`${GEN_COLOR}22`}`,borderLeft:`4px solid ${scoreColor}`,borderRadius:12,padding:"14px",position:"relative"}}>
+                  {isBest&&<div style={{position:"absolute",top:-10,left:14,background:GEN_COLOR,color:"#000",fontSize:9,fontWeight:900,padding:"2px 10px",borderRadius:10}}>🏆 MIGLIORE</div>}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{color:GEN_COLOR,fontFamily:"monospace",fontSize:11}}>#{i+1}</span>
+                      <span style={{background:`${scoreColor}22`,color:scoreColor,borderRadius:6,padding:"2px 10px",fontSize:11,fontWeight:900}}>Score {r.total}/100</span>
+                      <span style={{background:"#1a1a2a",color:C.dim,borderRadius:5,padding:"2px 7px",fontSize:9}}>{strategyIcon(r.strategy)} {strategyLabel(r.strategy)}</span>
                     </div>
-                    <div style={{ background: "#0a0a18", borderRadius: 6, height: 8, width: 100, overflow: "hidden" }}>
-                      <div style={{ background: `linear-gradient(90deg,${scoreColor},${GEN_COLOR})`, height: "100%", width: `${r.total}%` }} />
+                    <div style={{background:"#0a0a18",borderRadius:6,height:8,width:100,overflow:"hidden"}}>
+                      <div style={{background:`linear-gradient(90deg,${scoreColor},${GEN_COLOR})`,height:"100%",width:`${r.total}%`}}/>
                     </div>
                   </div>
-
-                  {/* Breakdown */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 4, marginBottom: 10 }}>
-                    {[
-                      { l: "🧬", v: r.advS, max: 40, c: "#22d3ee" },
-                      { l: "🔬", v: r.ensS, max: 35, c: "#e879f9" },
-                      { l: "🔗", v: r.pairS, max: 15, c: C.orange },
-                      { l: "📐", v: r.distS, max: 10, c: C.teal },
-                    ].map(row => (
-                      <div key={row.l} style={{ background: "#0a0a18", borderRadius: 6, padding: "5px 4px", textAlign: "center" }}>
-                        <div style={{ fontSize: 10, marginBottom: 1 }}>{row.l}</div>
-                        <div style={{ color: row.c, fontFamily: "monospace", fontSize: 12, fontWeight: 900 }}>{row.v.toFixed(0)}</div>
-                        <div style={{ background: "#050510", borderRadius: 2, height: 3, overflow: "hidden", marginTop: 2 }}>
-                          <div style={{ background: row.c, height: "100%", width: `${(row.v / row.max) * 100}%` }} />
-                        </div>
-                        <div style={{ color: C.dim, fontSize: 7, marginTop: 1 }}>/{row.max}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:4,marginBottom:10}}>
+                    {[{l:"🧬",v:r.advS,max:40,c:"#22d3ee"},{l:"🔬",v:r.ensS,max:35,c:"#e879f9"},{l:"🔗",v:r.pairS,max:15,c:C.orange},{l:"📐",v:r.distS,max:10,c:C.teal}].map(row=>(
+                      <div key={row.l} style={{background:"#0a0a18",borderRadius:6,padding:"5px 4px",textAlign:"center"}}>
+                        <div style={{fontSize:10,marginBottom:1}}>{row.l}</div>
+                        <div style={{color:row.c,fontFamily:"monospace",fontSize:12,fontWeight:900}}>{row.v.toFixed(0)}</div>
+                        <div style={{background:"#050510",borderRadius:2,height:3,overflow:"hidden",marginTop:2}}><div style={{background:row.c,height:"100%",width:`${(row.v/row.max)*100}%`}}/></div>
+                        <div style={{color:C.dim,fontSize:7,marginTop:1}}>/{row.max}</div>
                       </div>
                     ))}
                   </div>
-
-                  {/* Numeri */}
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-                    {r.nums.map((n, ni) => {
-                      const advRank = advScores.findIndex(x => x.num === n);
-                      const col = advRank < 10 ? "#FFD700" : advRank < 25 ? C.teal : GEN_COLOR;
-                      return <Ball key={n} num={n} color={col} size={38} glow={advRank < 10} />;
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+                    {r.nums.map(n=>{
+                      const advRank=advScoresRef.findIndex(x=>x.num===n);
+                      const col=advRank>=0&&advRank<10?"#FFD700":advRank<25?C.teal:GEN_COLOR;
+                      return <Ball key={n} num={n} color={col} size={38} glow={advRank>=0&&advRank<10}/>;
                     })}
                   </div>
-
-                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 12 }}>
-                    <span style={{ background: `${GEN_COLOR}22`, color: GEN_COLOR, borderRadius: 5, padding: "2px 8px", fontSize: 10, fontFamily: "monospace", fontWeight: 700 }}>Σ {r.sum}</span>
-                    <span style={{ background: "#12122a", color: C.dim, borderRadius: 5, padding: "2px 8px", fontSize: 10 }}>{r.evens}P–{r.odds}D</span>
-                    <span style={{ background: "#12122a", color: Math.abs(parseFloat(r.zScore)) < 1 ? C.green : C.orange, borderRadius: 5, padding: "2px 8px", fontSize: 10 }}>z={r.zScore}</span>
-                    <span style={{ background: `${C.teal}22`, color: C.teal, borderRadius: 5, padding: "2px 8px", fontSize: 10 }}>rit.medio {r.ritMedio}</span>
-                    {r.pairBonus > 0 && <span style={{ background: `${C.orange}22`, color: C.orange, borderRadius: 5, padding: "2px 8px", fontSize: 10 }}>coppie +{r.pairBonus.toFixed(1)}</span>}
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:12}}>
+                    <span style={{background:`${GEN_COLOR}22`,color:GEN_COLOR,borderRadius:5,padding:"2px 8px",fontSize:10,fontFamily:"monospace",fontWeight:700}}>Σ {r.sum}</span>
+                    <span style={{background:"#12122a",color:C.dim,borderRadius:5,padding:"2px 8px",fontSize:10}}>{r.evens}P–{r.odds}D</span>
+                    <span style={{background:"#12122a",color:Math.abs(parseFloat(r.zScore))<1?C.green:C.orange,borderRadius:5,padding:"2px 8px",fontSize:10}}>z={r.zScore}</span>
+                    <span style={{background:`${C.teal}22`,color:C.teal,borderRadius:5,padding:"2px 8px",fontSize:10}}>rit.medio {r.ritMedio}</span>
+                    {r.pairBonus>0&&<span style={{background:`${C.orange}22`,color:C.orange,borderRadius:5,padding:"2px 8px",fontSize:10}}>coppie +{r.pairBonus.toFixed(1)}</span>}
                   </div>
-
-                  {/* SuperStar */}
-                  <div style={{ background: "#0a0810", border: "1px solid #FFD70022", borderRadius: 10, padding: 10, marginBottom: 10 }}>
-                    <div style={{ color: "#FFD700", fontSize: 10, fontWeight: 700, marginBottom: 8 }}>⭐ SuperStar consigliato</div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                      {top3SS.map((s, si) => {
-                        const isCho = chosenSS === s.num;
-                        return (
-                          <div key={s.num} onClick={() => setSelSS(prev => ({ ...prev, [i]: s.num }))} style={{ textAlign: "center", cursor: "pointer", padding: "6px 8px", background: isCho ? "#FFD70018" : "#0e0e1c", border: `2px solid ${isCho ? "#FFD700" : "#2a2a3a"}`, borderRadius: 8, boxShadow: isCho ? "0 0 10px #FFD70044" : "none" }}>
-                            <Ball num={s.num} size={28} gold={isCho} color={isCho ? "#FFD700" : "#888"} glow={isCho} />
-                            <div style={{ color: isCho ? "#FFD700" : si === 0 ? "#E8B84B" : "#888", fontSize: 9, marginTop: 3, fontWeight: 700 }}>{s.pct}%</div>
-                            <div style={{ color: C.dim, fontSize: 8 }}>r.{s.ritardo}</div>
-                          </div>
-                        );
+                  <div style={{background:"#0a0810",border:"1px solid #FFD70022",borderRadius:10,padding:10,marginBottom:10}}>
+                    <div style={{color:"#FFD700",fontSize:10,fontWeight:700,marginBottom:8}}>⭐ SuperStar consigliato</div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                      {top3SS.map((s,si)=>{
+                        const isCho=chosenSS===s.num;
+                        return(<div key={s.num} onClick={()=>setSelSS(prev=>({...prev,[i]:s.num}))} style={{textAlign:"center",cursor:"pointer",padding:"6px 8px",background:isCho?"#FFD70018":"#0e0e1c",border:`2px solid ${isCho?"#FFD700":"#2a2a3a"}`,borderRadius:8,boxShadow:isCho?"0 0 10px #FFD70044":"none"}}>
+                          <Ball num={s.num} size={28} gold={isCho} color={isCho?"#FFD700":"#888"} glow={isCho}/>
+                          <div style={{color:isCho?"#FFD700":si===0?"#E8B84B":"#888",fontSize:9,marginTop:3,fontWeight:700}}>{s.pct}%</div>
+                          <div style={{color:C.dim,fontSize:8}}>r.{s.ritardo}</div>
+                        </div>);
                       })}
-                      <div style={{ display: "flex", alignItems: "center", paddingLeft: 8, borderLeft: "1px solid #222", gap: 6 }}>
-                        <Ball num={chosenSS || "?"} size={32} gold={!!chosenSS} color={chosenSS ? "#FFD700" : "#444"} glow={!!chosenSS} />
-                        <span style={{ color: "#FFD700", fontFamily: "monospace", fontWeight: 700, fontSize: 14 }}>{chosenSS || "—"}</span>
+                      <div style={{display:"flex",alignItems:"center",paddingLeft:8,borderLeft:"1px solid #222",gap:6}}>
+                        <Ball num={chosenSS||"?"} size={32} gold={!!chosenSS} color={chosenSS?"#FFD700":"#444"} glow={!!chosenSS}/>
+                        <span style={{color:"#FFD700",fontFamily:"monospace",fontWeight:700,fontSize:14}}>{chosenSS||"—"}</span>
                       </div>
                     </div>
                   </div>
-
-                  <button onClick={() => salvaBiglietto(r, i)} disabled={isSaved} style={{ width: "100%", padding: "10px", background: isSaved ? `${C.green}22` : `linear-gradient(135deg,${GEN_COLOR},#d97706)`, color: isSaved ? C.green : "#000", border: `2px solid ${isSaved ? C.green : GEN_COLOR}`, borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: isSaved ? "default" : "pointer", fontFamily: "inherit" }}>
-                    {isSaved ? "✅ Salvata in Biglietti" : "💾 Salva in Biglietti"}
+                  <button onClick={()=>salvaBiglietto(r,i)} disabled={isSaved} style={{width:"100%",padding:"10px",background:isSaved?`${C.green}22`:`linear-gradient(135deg,${GEN_COLOR},#d97706)`,color:isSaved?C.green:"#000",border:`2px solid ${isSaved?C.green:GEN_COLOR}`,borderRadius:10,fontSize:13,fontWeight:700,cursor:isSaved?"default":"pointer",fontFamily:"inherit"}}>
+                    {isSaved?"✅ Salvata in Biglietti":"💾 Salva in Biglietti"}
                   </button>
                 </div>
               );
             })}
           </div>
-          <div style={{ marginTop: 14, fontSize: 9, color: "#333", lineHeight: 1.8, borderTop: "1px solid #111", paddingTop: 10 }}>
+          <div style={{marginTop:14,fontSize:9,color:"#333",lineHeight:1.8,borderTop:"1px solid #111",paddingTop:10}}>
             Score (0–100): 🧬 Avanzato (+40) · 🔬 Predittivo (+35) · 🔗 Coppie (+15) · 📐 Somma (+10). Nessun potere predittivo.
           </div>
         </>
@@ -2658,7 +2588,6 @@ function TabGeneratoreUnificato() {
     </div>
   );
 }
-
 
 const TABS=[
   {id:"animazione",icon:"📈",label:"Animazione"},
