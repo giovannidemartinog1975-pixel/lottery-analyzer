@@ -2755,6 +2755,7 @@ export default function App(){
         {tab==="suggeritore"&&<TabSuggeritore/>}
         {tab==="analisi"&&<TabAnalisiAvanzata/>}   
         {tab==="predittivo"&&<TabPredittivo/>} 
+        {tab==="unificato"&&<TabGeneratoreUnificato/>}   
         {tab==="confronto"&&<TabConfronto/>}
         {tab==="estrazioni"&&<TabEstrazioni onUpdate={handleUpdate}/>}
         {tab==="biglietti"&&<TabBiglietti/>}
