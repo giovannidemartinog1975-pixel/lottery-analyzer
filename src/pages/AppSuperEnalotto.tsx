@@ -2345,8 +2345,33 @@ function TabPredittivo() {
   );
 }
 // ═══════════════════════════════════════════════════════════════
-// GENERATORE UNIFICATO v3 — con parametri regolabili
+// GENERATORE UNIFICATO v4 — con tooltip informativi
 // ═══════════════════════════════════════════════════════════════
+
+function InfoModal({title,text,onClose}){
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#0e0e1c",border:"1px solid #f59e0b55",borderRadius:14,padding:20,maxWidth:340,width:"100%"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <span style={{color:"#f59e0b",fontWeight:700,fontSize:13}}>{title}</span>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:"#666",fontSize:18,cursor:"pointer",lineHeight:1}}>✕</button>
+        </div>
+        <div style={{color:"#ccc",fontSize:12,lineHeight:1.7}}>{text}</div>
+        <button onClick={onClose} style={{width:"100%",marginTop:14,padding:"8px",background:"#f59e0b22",color:"#f59e0b",border:"1px solid #f59e0b55",borderRadius:8,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Ho capito</button>
+      </div>
+    </div>
+  );
+}
+
+function HelpBtn({title,text}){
+  const [open,setOpen]=useState(false);
+  return(
+    <>
+      <button onClick={()=>setOpen(true)} style={{background:"transparent",border:"1px solid #f59e0b44",borderRadius:"50%",width:18,height:18,color:"#f59e0b88",fontSize:10,cursor:"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",flexShrink:0}}>?</button>
+      {open&&<InfoModal title={title} text={text} onClose={()=>setOpen(false)}/>}
+    </>
+  );
+}
 
 function TabGeneratoreUnificato() {
   const allDraws = useDraws();
@@ -2354,10 +2379,9 @@ function TabGeneratoreUnificato() {
   const sums = series.map(d => d.sum);
   const muReale = avg(sums), sigmaReale = std(sums);
 
-  // ── Parametri regolabili ──
   const [qty, setQty] = useState(5);
   const [numCandidati, setNumCandidati] = useState(200);
-  const [rangeMode, setRangeMode] = useState("auto"); // auto | adattivo | custom
+  const [rangeMode, setRangeMode] = useState("adattivo");
   const [customLo, setCustomLo] = useState(Math.round(muReale - sigmaReale));
   const [customHi, setCustomHi] = useState(Math.round(muReale + sigmaReale));
   const [wAdv, setWAdv] = useState(40);
@@ -2374,7 +2398,6 @@ function TabGeneratoreUnificato() {
 
   const GEN_COLOR = "#f59e0b";
 
-  // Normalizza i pesi a 100
   const totalW = wAdv + wEns + wPair + wDist;
   const pAdv = Math.round(wAdv / totalW * 100);
   const pEns = Math.round(wEns / totalW * 100);
@@ -2383,6 +2406,17 @@ function TabGeneratoreUnificato() {
 
   const loAdattivo = Math.round(muReale - sigmaReale * 1.5);
   const hiAdattivo = Math.round(muReale + sigmaReale * 1.5);
+
+  const HELP = {
+    generale: `Il Generatore Unificato è lo strumento principale dell'app.\n\nGenera migliaia di sestine candidate, le valuta con 4 modelli diversi e ti mostra solo le migliori secondo lo score finale.\n\nLo score NON è una probabilità di vincita — la probabilità è sempre 1 su 622 milioni per qualsiasi sestina.`,
+    rangeSomma: `La somma dei 6 numeri di una sestina varia tipicamente tra 150 e 400.\n\n"Auto" usa il range suggerito dai modelli predittivi.\n"±1.5σ" è più largo e include più combinazioni possibili.\n"Custom" ti permette di impostare tu stesso il range.\n\nConsigli: parti con ±1.5σ per avere più varietà.`,
+    candidati: `Quante sestine vengono generate e valutate prima di scegliere le migliori.\n\nPiù candidati = più scelta = score finale leggermente più alto, ma elaborazione più lenta.\n\n360 → veloce (5-10 secondi)\n1500 → completo (20-30 secondi)`,
+    avanzato: `🧬 Avanzato — "Il numero è in ritardo?"\n\nAnalizza la storia di ogni numero: ogni quanto esce in media, quanto tempo è passato dall'ultima volta. Un numero che di solito esce ogni 15 estrazioni e manca da 30 riceve un punteggio alto.\n\nNon significa che "deve" uscire — la lotteria non ha memoria.`,
+    predittivo: `🔬 Predittivo — "Il trend recente favorisce questo numero?"\n\nCombina 5 modelli: cicli storici, probabilità bayesiana, ritardo, correlazioni tra coppie, e trend delle ultime estrazioni (LSTM).\n\nDà un'indicazione su quali numeri sono statisticamente "attivi" nelle ultime settimane.`,
+    coppie: `🔗 Coppie — "Questi numeri escono spesso insieme?"\n\nAnalizza quali coppie di numeri sono uscite insieme più volte del previsto nella storia della lotteria.\n\nSe 69 e 73 escono insieme 8 volte più del caso, una sestina che li contiene entrambi riceve un bonus.`,
+    somma: `📐 Somma — "La somma totale è nel range previsto?"\n\nI modelli di regressione e LSTM stimano in quale range di somme cadrà la prossima estrazione.\n\nUna sestina con somma vicina a quella prevista riceve un punteggio più alto.\n\nPeso basso (10%) perché è il modello meno affidabile.`,
+    score: `Lo score finale (0–100) è la media pesata dei 4 modelli.\n\nScore tipici sui dati reali:\n• 28–35: normale\n• 36–45: buono\n• 46–55: molto buono (raro)\n• 56+: eccellente (rarissimo)\n\nScore più alto non significa più probabilità di vincita — significa solo che la sestina soddisfa meglio i criteri statistici scelti.`,
+  };
 
   const genera = () => {
     setLoading(true); setResults([]); setSelSS({}); setSavedIds(new Set());
@@ -2397,17 +2431,14 @@ function TabGeneratoreUnificato() {
 
       setAdvScoresRef(advScores);
 
-      // Range somma basato sulla modalità scelta
       let loB, hiB;
       if (rangeMode === "auto") {
         loB = Math.min(Math.round(muReale - sigmaReale), regression.predictedRange.lo, lstm.predictedRange.lo);
         hiB = Math.max(Math.round(muReale + sigmaReale), regression.predictedRange.hi, lstm.predictedRange.hi);
       } else if (rangeMode === "adattivo") {
-        loB = loAdattivo;
-        hiB = hiAdattivo;
+        loB = loAdattivo; hiB = hiAdattivo;
       } else {
-        loB = customLo;
-        hiB = customHi;
+        loB = customLo; hiB = customHi;
       }
 
       const ritardi = Array.from({length: POOL}, (_, i) => {
@@ -2418,7 +2449,7 @@ function TabGeneratoreUnificato() {
         return allDraws.length;
       });
 
-      setProgress(`🔮 Generando ${numCandidati * 3} candidati...`);
+      setProgress(`🔮 ${numCandidati * 3} candidati...`);
 
       setTimeout(() => {
         const rng = mkRng(Date.now());
@@ -2448,18 +2479,9 @@ function TabGeneratoreUnificato() {
           }
         }
 
-        const wA = Array.from({length: POOL}, (_, i) => Math.max(0.05, ((advScores.find(x=>x.num===i+1)?.unified||0)/100)+0.3));
-        genCandidates(wA, "adv", CAND);
-
-        const wE = Array.from({length: POOL}, (_, i) => Math.max(0.05, ((ensembleScores.find(x=>x.num===i+1)?.ensemble||0)/100)+0.3));
-        genCandidates(wE, "ens", CAND);
-
-        const wC = Array.from({length: POOL}, (_, i) => {
-          const a = advScores.find(x=>x.num===i+1)?.unified||0;
-          const e = ensembleScores.find(x=>x.num===i+1)?.ensemble||0;
-          return Math.max(0.05, (a+e)/200+0.3);
-        });
-        genCandidates(wC, "comb", CAND);
+        genCandidates(Array.from({length: POOL}, (_, i) => Math.max(0.05, (advScores.find(x=>x.num===i+1)?.unified||0)/100+0.3)), "adv", CAND);
+        genCandidates(Array.from({length: POOL}, (_, i) => Math.max(0.05, (ensembleScores.find(x=>x.num===i+1)?.ensemble||0)/100+0.3)), "ens", CAND);
+        genCandidates(Array.from({length: POOL}, (_, i) => { const a=advScores.find(x=>x.num===i+1)?.unified||0; const e=ensembleScores.find(x=>x.num===i+1)?.ensemble||0; return Math.max(0.05,(a+e)/200+0.3); }), "comb", CAND);
 
         setProgress("📊 Score finale...");
 
@@ -2467,16 +2489,16 @@ function TabGeneratoreUnificato() {
           const scored = allCandidates.map(c => {
             const s = c.nums.reduce((a, b) => a + b, 0);
             const advMean = c.nums.reduce((acc,n)=>acc+(advScores.find(x=>x.num===n)?.unified||0),0)/c.nums.length;
-            const advS = (advMean/100)*(pAdv);
+            const advS = (advMean/100)*pAdv;
             const ensMean = c.nums.reduce((acc,n)=>acc+(ensembleScores.find(x=>x.num===n)?.ensemble||0),0)/c.nums.length;
-            const ensS = (ensMean/100)*(pEns);
+            const ensS = (ensMean/100)*pEns;
             let pairB = 0;
             for(let i=0;i<c.nums.length;i++) for(let j=i+1;j<c.nums.length;j++){
               const p=pairData.topPairs.find(x=>x.nums[0]===c.nums[i]&&x.nums[1]===c.nums[j]);
               if(p) pairB+=Math.max(0,p.z);
             }
-            const pairS = Math.min(pairB/10,1)*(pPair);
-            const distS = Math.max(0,pDist-Math.abs(s-regression.predicted)/Math.max(sigmaReale,1)*5);
+            const pairS = Math.min(pairB/10,1)*pPair;
+            const distS = Math.max(0, pDist-Math.abs(s-regression.predicted)/Math.max(sigmaReale,1)*5);
             const total = advS+ensS+pairS+distS;
             const evens = c.nums.filter(n=>n%2===0).length;
             const ritMedio = Math.round(c.nums.reduce((acc,n)=>acc+ritardi[n-1],0)/c.nums.length);
@@ -2514,7 +2536,10 @@ function TabGeneratoreUnificato() {
 
   return (
     <div>
-      <h2 style={{color:GEN_COLOR,fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>⭐ Generatore Unificato</h2>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <h2 style={{color:GEN_COLOR,fontFamily:"Georgia,serif",fontSize:16,margin:0}}>⭐ Generatore Unificato</h2>
+        <HelpBtn title="⭐ Come funziona il Generatore Unificato" text={HELP.generale}/>
+      </div>
 
       {/* PARAMETRI */}
       <div style={{background:"#1a0e00",border:`1px solid ${GEN_COLOR}44`,borderRadius:12,padding:14,marginBottom:14}}>
@@ -2522,69 +2547,61 @@ function TabGeneratoreUnificato() {
 
         {/* Range somma */}
         <div style={{marginBottom:12}}>
-          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Range somma</div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-            {[
-              {v:"auto",l:`Auto [${Math.min(Math.round(muReale-sigmaReale),Math.round(muReale-sigmaReale))}–${Math.max(Math.round(muReale+sigmaReale),Math.round(muReale+sigmaReale))}]`},
-              {v:"adattivo",l:`±1.5σ [${loAdattivo}–${hiAdattivo}]`},
-              {v:"custom",l:"Personalizzato"},
-            ].map(r=>(
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+            <span style={{color:C.dim,fontSize:10}}>Range somma</span>
+            <HelpBtn title="Range somma" text={HELP.rangeSomma}/>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
+            {[{v:"auto",l:"Auto"},{v:"adattivo",l:`±1.5σ [${loAdattivo}–${hiAdattivo}]`},{v:"custom",l:"Custom"}].map(r=>(
               <button key={r.v} onClick={()=>setRangeMode(r.v)} style={{background:rangeMode===r.v?`${GEN_COLOR}22`:"transparent",color:rangeMode===r.v?GEN_COLOR:C.dim,border:`1px solid ${rangeMode===r.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{r.l}</button>
             ))}
           </div>
-          {rangeMode==="custom"&&(
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <div><div style={{color:C.dim,fontSize:9,marginBottom:2}}>Min Σ</div><input type="number" value={customLo} onChange={e=>setCustomLo(+e.target.value)} style={{width:70,background:"#0a0a1c",color:GEN_COLOR,border:`1px solid ${GEN_COLOR}55`,borderRadius:6,padding:"4px 6px",fontSize:12,fontFamily:"monospace",outline:"none"}}/></div>
-              <span style={{color:C.dim,marginTop:14}}>–</span>
-              <div><div style={{color:C.dim,fontSize:9,marginBottom:2}}>Max Σ</div><input type="number" value={customHi} onChange={e=>setCustomHi(+e.target.value)} style={{width:70,background:"#0a0a1c",color:GEN_COLOR,border:`1px solid ${GEN_COLOR}55`,borderRadius:6,padding:"4px 6px",fontSize:12,fontFamily:"monospace",outline:"none"}}/></div>
-            </div>
-          )}
+          {rangeMode==="custom"&&(<div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <div><div style={{color:C.dim,fontSize:9,marginBottom:2}}>Min</div><input type="number" value={customLo} onChange={e=>setCustomLo(+e.target.value)} style={{width:60,background:"#0a0a1c",color:GEN_COLOR,border:`1px solid ${GEN_COLOR}55`,borderRadius:6,padding:"4px 6px",fontSize:12,fontFamily:"monospace",outline:"none"}}/></div>
+            <span style={{color:C.dim,marginTop:14}}>–</span>
+            <div><div style={{color:C.dim,fontSize:9,marginBottom:2}}>Max</div><input type="number" value={customHi} onChange={e=>setCustomHi(+e.target.value)} style={{width:60,background:"#0a0a1c",color:GEN_COLOR,border:`1px solid ${GEN_COLOR}55`,borderRadius:6,padding:"4px 6px",fontSize:12,fontFamily:"monospace",outline:"none"}}/></div>
+          </div>)}
         </div>
 
-        {/* Numero candidati */}
+        {/* Candidati */}
         <div style={{marginBottom:12}}>
-          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Candidati generati (per strategia × 3)</div>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+            <span style={{color:C.dim,fontSize:10}}>Candidati generati (×3 strategie)</span>
+            <HelpBtn title="Numero di candidati" text={HELP.candidati}/>
+          </div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {[120,200,300,500].map(n=>(
-              <button key={n} onClick={()=>setNumCandidati(n)} style={{background:numCandidati===n?`${GEN_COLOR}22`:"transparent",color:numCandidati===n?GEN_COLOR:C.dim,border:`1px solid ${numCandidati===n?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 12px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>
-                <div style={{fontWeight:700}}>{n*3}</div>
-                <div style={{fontSize:8,color:numCandidati===n?C.teal:C.dim}}>{n} × 3</div>
-              </button>
-            ))}
+            {[120,200,300,500].map(n=>(<button key={n} onClick={()=>setNumCandidati(n)} style={{background:numCandidati===n?`${GEN_COLOR}22`:"transparent",color:numCandidati===n?GEN_COLOR:C.dim,border:`1px solid ${numCandidati===n?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{n*3}</button>))}
           </div>
         </div>
 
-        {/* Pesi componenti */}
+        {/* Pesi */}
         <div>
-          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Pesi score finale — totale: <strong style={{color:totalW===100?GEN_COLOR:C.red}}>{totalW}/100</strong></div>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+            <span style={{color:C.dim,fontSize:10}}>Pesi score finale — totale: <strong style={{color:totalW===100?GEN_COLOR:C.red}}>{totalW}/100</strong></span>
+          </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
             {[
-              {l:"🧬 Avanzato",v:wAdv,set:setWAdv,c:"#22d3ee"},
-              {l:"🔬 Predittivo",v:wEns,set:setWEns,c:"#e879f9"},
-              {l:"🔗 Coppie",v:wPair,set:setWPair,c:C.orange},
-              {l:"📐 Somma predetta",v:wDist,set:setWDist,c:C.teal},
+              {l:"🧬 Avanzato",v:wAdv,set:setWAdv,c:"#22d3ee",help:"avanzato"},
+              {l:"🔬 Predittivo",v:wEns,set:setWEns,c:"#e879f9",help:"predittivo"},
+              {l:"🔗 Coppie",v:wPair,set:setWPair,c:C.orange,help:"coppie"},
+              {l:"📐 Somma",v:wDist,set:setWDist,c:C.teal,help:"somma"},
             ].map(row=>(
               <div key={row.l}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                  <span style={{color:row.c,fontSize:10}}>{row.l}</span>
-                  <span style={{color:row.c,fontFamily:"monospace",fontSize:10,fontWeight:700}}>{row.v}pt</span>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                  <div style={{display:"flex",alignItems:"center",gap:4}}>
+                    <span style={{color:row.c,fontSize:9}}>{row.l}</span>
+                    <HelpBtn title={row.l} text={HELP[row.help]}/>
+                  </div>
+                  <span style={{color:row.c,fontSize:9,fontWeight:700}}>{row.v}pt</span>
                 </div>
                 <input type="range" min={0} max={60} step={5} value={row.v} onChange={e=>row.set(+e.target.value)} style={{width:"100%",accentColor:row.c,cursor:"pointer"}}/>
-              </div>
-            ))}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:4,marginTop:8}}>
-            {[{l:"🧬",v:pAdv,c:"#22d3ee"},{l:"🔬",v:pEns,c:"#e879f9"},{l:"🔗",v:pPair,c:C.orange},{l:"📐",v:pDist,c:C.teal}].map(x=>(
-              <div key={x.l} style={{background:"#0a0800",borderRadius:6,padding:"4px",textAlign:"center"}}>
-                <div style={{fontSize:9}}>{x.l}</div>
-                <div style={{color:x.c,fontFamily:"monospace",fontSize:11,fontWeight:900}}>{x.v}%</div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Risultati */}
+      {/* Risultati qty */}
       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
         <span style={{color:C.dim,fontSize:11}}>Risultati:</span>
         {[3,5,10,15].map(n=>(<button key={n} onClick={()=>setQty(n)} style={{background:qty===n?`${GEN_COLOR}22`:"transparent",color:qty===n?GEN_COLOR:C.dim,border:`1px solid ${qty===n?GEN_COLOR:C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>))}
@@ -2596,7 +2613,10 @@ function TabGeneratoreUnificato() {
 
       {results.length>0&&(
         <>
-          <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate · pesi: 🧬{pAdv}% 🔬{pEns}% 🔗{pPair}% 📐{pDist}%</div>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
+            <span style={{color:C.dim,fontSize:11}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate · pesi: 🧬{pAdv}% 🔬{pEns}% 🔗{pPair}% 📐{pDist}%</span>
+            <HelpBtn title="Score finale" text={HELP.score}/>
+          </div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             {results.map((r,i)=>{
               const isBest=i===0;
