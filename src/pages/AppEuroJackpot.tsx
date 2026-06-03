@@ -1572,6 +1572,9 @@ export default function App(){
         {tab==="segnali"&&<TabSegnali/>}
         {tab==="banda"&&<TabBanda/>}
         {tab==="generatore"&&<TabGeneratore/>}
+        {tab==="suggeritore"&&<TabSuggeritore/>}
+        {tab==="analisi"&&<TabAnalisiAvanzata/>}
+        {tab==="unificato"&&<TabGeneratoreUnificatoEJ/>}        
         {tab==="confronto"&&<TabConfronto/>}
         {tab==="estrazioni"&&<TabEstrazioni onUpdate={handleUpdate}/>}
         {tab==="biglietti"&&<TabBiglietti/>}
