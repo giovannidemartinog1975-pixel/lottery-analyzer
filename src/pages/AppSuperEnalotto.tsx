@@ -2659,6 +2659,7 @@ function TabGeneratoreUnificato() {
   );
 }
 
+
 const TABS=[
   {id:"animazione",icon:"📈",label:"Animazione"},
   {id:"segnali",icon:"🔬",label:"Segnali & Freq."},
