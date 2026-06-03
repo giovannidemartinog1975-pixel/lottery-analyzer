@@ -2345,7 +2345,7 @@ function TabPredittivo() {
   );
 }
 // ═══════════════════════════════════════════════════════════════
-// GENERATORE UNIFICATO v2 — inserire prima della costante TABS
+// GENERATORE UNIFICATO v3 — con parametri regolabili
 // ═══════════════════════════════════════════════════════════════
 
 function TabGeneratoreUnificato() {
@@ -2354,7 +2354,17 @@ function TabGeneratoreUnificato() {
   const sums = series.map(d => d.sum);
   const muReale = avg(sums), sigmaReale = std(sums);
 
+  // ── Parametri regolabili ──
   const [qty, setQty] = useState(5);
+  const [numCandidati, setNumCandidati] = useState(200);
+  const [rangeMode, setRangeMode] = useState("auto"); // auto | adattivo | custom
+  const [customLo, setCustomLo] = useState(Math.round(muReale - sigmaReale));
+  const [customHi, setCustomHi] = useState(Math.round(muReale + sigmaReale));
+  const [wAdv, setWAdv] = useState(40);
+  const [wEns, setWEns] = useState(35);
+  const [wPair, setWPair] = useState(15);
+  const [wDist, setWDist] = useState(10);
+
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
   const [advScoresRef, setAdvScoresRef] = useState([]);
@@ -2363,6 +2373,16 @@ function TabGeneratoreUnificato() {
   const [progress, setProgress] = useState("");
 
   const GEN_COLOR = "#f59e0b";
+
+  // Normalizza i pesi a 100
+  const totalW = wAdv + wEns + wPair + wDist;
+  const pAdv = Math.round(wAdv / totalW * 100);
+  const pEns = Math.round(wEns / totalW * 100);
+  const pPair = Math.round(wPair / totalW * 100);
+  const pDist = 100 - pAdv - pEns - pPair;
+
+  const loAdattivo = Math.round(muReale - sigmaReale * 1.5);
+  const hiAdattivo = Math.round(muReale + sigmaReale * 1.5);
 
   const genera = () => {
     setLoading(true); setResults([]); setSelSS({}); setSavedIds(new Set());
@@ -2375,8 +2395,20 @@ function TabGeneratoreUnificato() {
       const regression = computeRegression(allDraws);
       const lstm = computeLSTM(allDraws);
 
-      // Salva advScores nello state per usarlo nel render
       setAdvScoresRef(advScores);
+
+      // Range somma basato sulla modalità scelta
+      let loB, hiB;
+      if (rangeMode === "auto") {
+        loB = Math.min(Math.round(muReale - sigmaReale), regression.predictedRange.lo, lstm.predictedRange.lo);
+        hiB = Math.max(Math.round(muReale + sigmaReale), regression.predictedRange.hi, lstm.predictedRange.hi);
+      } else if (rangeMode === "adattivo") {
+        loB = loAdattivo;
+        hiB = hiAdattivo;
+      } else {
+        loB = customLo;
+        hiB = customHi;
+      }
 
       const ritardi = Array.from({length: POOL}, (_, i) => {
         const num = i + 1;
@@ -2386,25 +2418,22 @@ function TabGeneratoreUnificato() {
         return allDraws.length;
       });
 
-      setProgress("🔮 Generazione candidati...");
+      setProgress(`🔮 Generando ${numCandidati * 3} candidati...`);
 
       setTimeout(() => {
         const rng = mkRng(Date.now());
-        const CAND = 40;
+        const CAND = Math.round(numCandidati / 3);
         const allCandidates = [];
         const seenKeys = new Set();
 
-        const loB = Math.min(Math.round(muReale - sigmaReale), regression.predictedRange.lo, lstm.predictedRange.lo);
-        const hiB = Math.max(Math.round(muReale + sigmaReale), regression.predictedRange.hi, lstm.predictedRange.hi);
-
         function genCandidates(weights, strategy, count) {
           const pool = Array.from({length: POOL}, (_, i) => i + 1);
-          const totalW = weights.reduce((a, b) => a + b, 0);
+          const tw = weights.reduce((a, b) => a + b, 0);
           const cumW = []; let acc = 0;
-          weights.forEach(w => { acc += w; cumW.push(acc / totalW); });
+          weights.forEach(w => { acc += w; cumW.push(acc / tw); });
           function pick() { const r = rng(); for (let i = 0; i < cumW.length; i++) if (r <= cumW[i]) return pool[i]; return pool[pool.length-1]; }
           let sc = 0;
-          while (allCandidates.filter(c => c.strategy === strategy).length < count && sc < 300000) {
+          while (allCandidates.filter(c => c.strategy === strategy).length < count && sc < 500000) {
             sc++;
             const nums = new Set(); let att = 0;
             while (nums.size < PICK && att < 100) { nums.add(pick()); att++; }
@@ -2419,18 +2448,18 @@ function TabGeneratoreUnificato() {
           }
         }
 
-        const wAdv = Array.from({length: POOL}, (_, i) => Math.max(0.05, ((advScores.find(x=>x.num===i+1)?.unified||0)/100)+0.3));
-        genCandidates(wAdv, "adv", CAND);
+        const wA = Array.from({length: POOL}, (_, i) => Math.max(0.05, ((advScores.find(x=>x.num===i+1)?.unified||0)/100)+0.3));
+        genCandidates(wA, "adv", CAND);
 
-        const wEns = Array.from({length: POOL}, (_, i) => Math.max(0.05, ((ensembleScores.find(x=>x.num===i+1)?.ensemble||0)/100)+0.3));
-        genCandidates(wEns, "ens", CAND);
+        const wE = Array.from({length: POOL}, (_, i) => Math.max(0.05, ((ensembleScores.find(x=>x.num===i+1)?.ensemble||0)/100)+0.3));
+        genCandidates(wE, "ens", CAND);
 
-        const wComb = Array.from({length: POOL}, (_, i) => {
+        const wC = Array.from({length: POOL}, (_, i) => {
           const a = advScores.find(x=>x.num===i+1)?.unified||0;
           const e = ensembleScores.find(x=>x.num===i+1)?.ensemble||0;
           return Math.max(0.05, (a+e)/200+0.3);
         });
-        genCandidates(wComb, "comb", CAND);
+        genCandidates(wC, "comb", CAND);
 
         setProgress("📊 Score finale...");
 
@@ -2438,16 +2467,16 @@ function TabGeneratoreUnificato() {
           const scored = allCandidates.map(c => {
             const s = c.nums.reduce((a, b) => a + b, 0);
             const advMean = c.nums.reduce((acc,n)=>acc+(advScores.find(x=>x.num===n)?.unified||0),0)/c.nums.length;
-            const advS = (advMean/100)*40;
+            const advS = (advMean/100)*(pAdv);
             const ensMean = c.nums.reduce((acc,n)=>acc+(ensembleScores.find(x=>x.num===n)?.ensemble||0),0)/c.nums.length;
-            const ensS = (ensMean/100)*35;
+            const ensS = (ensMean/100)*(pEns);
             let pairB = 0;
             for(let i=0;i<c.nums.length;i++) for(let j=i+1;j<c.nums.length;j++){
               const p=pairData.topPairs.find(x=>x.nums[0]===c.nums[i]&&x.nums[1]===c.nums[j]);
               if(p) pairB+=Math.max(0,p.z);
             }
-            const pairS = Math.min(pairB/10,1)*15;
-            const distS = Math.max(0,10-Math.abs(s-regression.predicted)/Math.max(sigmaReale,1)*5);
+            const pairS = Math.min(pairB/10,1)*(pPair);
+            const distS = Math.max(0,pDist-Math.abs(s-regression.predicted)/Math.max(sigmaReale,1)*5);
             const total = advS+ensS+pairS+distS;
             const evens = c.nums.filter(n=>n%2===0).length;
             const ritMedio = Math.round(c.nums.reduce((acc,n)=>acc+ritardi[n-1],0)/c.nums.length);
@@ -2486,20 +2515,76 @@ function TabGeneratoreUnificato() {
   return (
     <div>
       <h2 style={{color:GEN_COLOR,fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>⭐ Generatore Unificato</h2>
-      <div style={{background:"#1a0e00",border:`1px solid ${GEN_COLOR}44`,borderRadius:12,padding:14,marginBottom:16}}>
-        <div style={{color:GEN_COLOR,fontWeight:700,fontSize:11,marginBottom:8,letterSpacing:1}}>COME FUNZIONA</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
-          {[{icon:"🧬",label:"Avanzato",pct:"40%"},{icon:"🔬",label:"Predittivo",pct:"35%"},{icon:"🔗",label:"Coppie",pct:"15%"},{icon:"📐",label:"Somma",pct:"10%"}].map(m=>(
-            <div key={m.label} style={{background:"#0a0800",border:`1px solid ${GEN_COLOR}22`,borderRadius:8,padding:"6px",textAlign:"center"}}>
-              <div style={{fontSize:14}}>{m.icon}</div>
-              <div style={{color:GEN_COLOR,fontSize:9,fontWeight:700}}>{m.label}</div>
-              <div style={{background:`${GEN_COLOR}33`,color:GEN_COLOR,borderRadius:10,padding:"1px 5px",fontSize:9,fontWeight:900,marginTop:2}}>{m.pct}</div>
+
+      {/* PARAMETRI */}
+      <div style={{background:"#1a0e00",border:`1px solid ${GEN_COLOR}44`,borderRadius:12,padding:14,marginBottom:14}}>
+        <div style={{color:GEN_COLOR,fontWeight:700,fontSize:11,marginBottom:12,letterSpacing:1}}>⚙️ PARAMETRI</div>
+
+        {/* Range somma */}
+        <div style={{marginBottom:12}}>
+          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Range somma</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+            {[
+              {v:"auto",l:`Auto [${Math.min(Math.round(muReale-sigmaReale),Math.round(muReale-sigmaReale))}–${Math.max(Math.round(muReale+sigmaReale),Math.round(muReale+sigmaReale))}]`},
+              {v:"adattivo",l:`±1.5σ [${loAdattivo}–${hiAdattivo}]`},
+              {v:"custom",l:"Personalizzato"},
+            ].map(r=>(
+              <button key={r.v} onClick={()=>setRangeMode(r.v)} style={{background:rangeMode===r.v?`${GEN_COLOR}22`:"transparent",color:rangeMode===r.v?GEN_COLOR:C.dim,border:`1px solid ${rangeMode===r.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{r.l}</button>
+            ))}
+          </div>
+          {rangeMode==="custom"&&(
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <div><div style={{color:C.dim,fontSize:9,marginBottom:2}}>Min Σ</div><input type="number" value={customLo} onChange={e=>setCustomLo(+e.target.value)} style={{width:70,background:"#0a0a1c",color:GEN_COLOR,border:`1px solid ${GEN_COLOR}55`,borderRadius:6,padding:"4px 6px",fontSize:12,fontFamily:"monospace",outline:"none"}}/></div>
+              <span style={{color:C.dim,marginTop:14}}>–</span>
+              <div><div style={{color:C.dim,fontSize:9,marginBottom:2}}>Max Σ</div><input type="number" value={customHi} onChange={e=>setCustomHi(+e.target.value)} style={{width:70,background:"#0a0a1c",color:GEN_COLOR,border:`1px solid ${GEN_COLOR}55`,borderRadius:6,padding:"4px 6px",fontSize:12,fontFamily:"monospace",outline:"none"}}/></div>
             </div>
-          ))}
+          )}
         </div>
-        <div style={{color:C.dim,fontSize:10,lineHeight:1.6}}>Genera <strong style={{color:GEN_COLOR}}>120 sestine candidate</strong> con 3 strategie, calcola lo score finale unificato e restituisce le migliori.</div>
+
+        {/* Numero candidati */}
+        <div style={{marginBottom:12}}>
+          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Candidati generati (per strategia × 3)</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[120,200,300,500].map(n=>(
+              <button key={n} onClick={()=>setNumCandidati(n)} style={{background:numCandidati===n?`${GEN_COLOR}22`:"transparent",color:numCandidati===n?GEN_COLOR:C.dim,border:`1px solid ${numCandidati===n?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 12px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>
+                <div style={{fontWeight:700}}>{n*3}</div>
+                <div style={{fontSize:8,color:numCandidati===n?C.teal:C.dim}}>{n} × 3</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Pesi componenti */}
+        <div>
+          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Pesi score finale — totale: <strong style={{color:totalW===100?GEN_COLOR:C.red}}>{totalW}/100</strong></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            {[
+              {l:"🧬 Avanzato",v:wAdv,set:setWAdv,c:"#22d3ee"},
+              {l:"🔬 Predittivo",v:wEns,set:setWEns,c:"#e879f9"},
+              {l:"🔗 Coppie",v:wPair,set:setWPair,c:C.orange},
+              {l:"📐 Somma predetta",v:wDist,set:setWDist,c:C.teal},
+            ].map(row=>(
+              <div key={row.l}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                  <span style={{color:row.c,fontSize:10}}>{row.l}</span>
+                  <span style={{color:row.c,fontFamily:"monospace",fontSize:10,fontWeight:700}}>{row.v}pt</span>
+                </div>
+                <input type="range" min={0} max={60} step={5} value={row.v} onChange={e=>row.set(+e.target.value)} style={{width:"100%",accentColor:row.c,cursor:"pointer"}}/>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:4,marginTop:8}}>
+            {[{l:"🧬",v:pAdv,c:"#22d3ee"},{l:"🔬",v:pEns,c:"#e879f9"},{l:"🔗",v:pPair,c:C.orange},{l:"📐",v:pDist,c:C.teal}].map(x=>(
+              <div key={x.l} style={{background:"#0a0800",borderRadius:6,padding:"4px",textAlign:"center"}}>
+                <div style={{fontSize:9}}>{x.l}</div>
+                <div style={{color:x.c,fontFamily:"monospace",fontSize:11,fontWeight:900}}>{x.v}%</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
+      {/* Risultati */}
       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
         <span style={{color:C.dim,fontSize:11}}>Risultati:</span>
         {[3,5,10,15].map(n=>(<button key={n} onClick={()=>setQty(n)} style={{background:qty===n?`${GEN_COLOR}22`:"transparent",color:qty===n?GEN_COLOR:C.dim,border:`1px solid ${qty===n?GEN_COLOR:C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>))}
@@ -2511,7 +2596,7 @@ function TabGeneratoreUnificato() {
 
       {results.length>0&&(
         <>
-          <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su 120 candidate · score finale unificato</div>
+          <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate · pesi: 🧬{pAdv}% 🔬{pEns}% 🔗{pPair}% 📐{pDist}%</div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             {results.map((r,i)=>{
               const isBest=i===0;
@@ -2533,11 +2618,11 @@ function TabGeneratoreUnificato() {
                     </div>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:4,marginBottom:10}}>
-                    {[{l:"🧬",v:r.advS,max:40,c:"#22d3ee"},{l:"🔬",v:r.ensS,max:35,c:"#e879f9"},{l:"🔗",v:r.pairS,max:15,c:C.orange},{l:"📐",v:r.distS,max:10,c:C.teal}].map(row=>(
+                    {[{l:"🧬",v:r.advS,max:pAdv,c:"#22d3ee"},{l:"🔬",v:r.ensS,max:pEns,c:"#e879f9"},{l:"🔗",v:r.pairS,max:pPair,c:C.orange},{l:"📐",v:r.distS,max:pDist,c:C.teal}].map(row=>(
                       <div key={row.l} style={{background:"#0a0a18",borderRadius:6,padding:"5px 4px",textAlign:"center"}}>
                         <div style={{fontSize:10,marginBottom:1}}>{row.l}</div>
                         <div style={{color:row.c,fontFamily:"monospace",fontSize:12,fontWeight:900}}>{row.v.toFixed(0)}</div>
-                        <div style={{background:"#050510",borderRadius:2,height:3,overflow:"hidden",marginTop:2}}><div style={{background:row.c,height:"100%",width:`${(row.v/row.max)*100}%`}}/></div>
+                        <div style={{background:"#050510",borderRadius:2,height:3,overflow:"hidden",marginTop:2}}><div style={{background:row.c,height:"100%",width:`${row.max>0?(row.v/row.max)*100:0}%`}}/></div>
                         <div style={{color:C.dim,fontSize:7,marginTop:1}}>/{row.max}</div>
                       </div>
                     ))}
@@ -2581,14 +2666,13 @@ function TabGeneratoreUnificato() {
             })}
           </div>
           <div style={{marginTop:14,fontSize:9,color:"#333",lineHeight:1.8,borderTop:"1px solid #111",paddingTop:10}}>
-            Score (0–100): 🧬 Avanzato (+40) · 🔬 Predittivo (+35) · 🔗 Coppie (+15) · 📐 Somma (+10). Nessun potere predittivo.
+            Score finale normalizzato ai pesi scelti. Nessun potere predittivo.
           </div>
         </>
       )}
     </div>
   );
 }
-
 const TABS=[
   {id:"animazione",icon:"📈",label:"Animazione"},
   {id:"segnali",icon:"🔬",label:"Segnali & Freq."},
