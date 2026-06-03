@@ -2344,6 +2344,384 @@ function TabPredittivo() {
     </div>
   );
 }
+// ═══════════════════════════════════════════════════════════════
+// GENERATORE UNIFICATO — inserire prima della costante TABS
+// ═══════════════════════════════════════════════════════════════
+
+function TabGeneratoreUnificato() {
+  const allDraws = useDraws();
+  const series = useMemo(() => buildSeries(allDraws), [allDraws]);
+  const sums = series.map(d => d.sum);
+  const muReale = avg(sums), sigmaReale = std(sums);
+
+  const [qty, setQty] = useState(5);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState([]);
+  const [selSS, setSelSS] = useState({});
+  const [savedIds, setSavedIds] = useState(new Set());
+  const [progress, setProgress] = useState("");
+
+  const GEN_COLOR = "#f59e0b"; // ambra/oro
+
+  // Calcola score finale unificato per una sestina
+  function calcScoreFinale(nums, advScores, ensembleScores, pairData, regression, muReale, sigmaReale, allDraws) {
+    const s = nums.reduce((a, b) => a + b, 0);
+    const freq = Array(POOL + 1).fill(0);
+    allDraws.forEach(d => d.nums.forEach(n => freq[n]++));
+
+    // 1. Score avanzato (Markov+Cicli+Bayes) — 40%
+    const advMean = nums.reduce((acc, n) => {
+      const a = advScores.find(x => x.num === n);
+      return acc + (a ? a.unified : 0);
+    }, 0) / nums.length;
+    const advScore = (advMean / 100) * 40;
+
+    // 2. Score ensemble predittivo — 35%
+    const ensembleMean = nums.reduce((acc, n) => {
+      const e = ensembleScores.find(x => x.num === n);
+      return acc + (e ? e.ensemble : 0);
+    }, 0) / nums.length;
+    const ensembleScore = (ensembleMean / 100) * 35;
+
+    // 3. Affinità coppie correlate — 15%
+    let pairBonus = 0;
+    for (let i = 0; i < nums.length; i++)
+      for (let j = i + 1; j < nums.length; j++) {
+        const p = pairData.topPairs.find(x => x.nums[0] === nums[i] && x.nums[1] === nums[j]);
+        if (p) pairBonus += Math.max(0, p.z);
+      }
+    const pairScore = Math.min(pairBonus / 10, 1) * 15;
+
+    // 4. Distanza dalla somma predetta — 10%
+    const predictedSum = regression.predicted;
+    const distScore = Math.max(0, 10 - Math.abs(s - predictedSum) / sigmaReale * 5);
+
+    const total = advScore + ensembleScore + pairScore + distScore;
+
+    // Info aggiuntive
+    const zS = zOf(s, MU_TEO, SIGMA_TEO);
+    const evens = nums.filter(n => n % 2 === 0).length;
+    const ritMedio = nums.reduce((acc, n) => {
+      let r = allDraws.length;
+      for (let i = allDraws.length - 1; i >= 0; i--) {
+        if (allDraws[i].nums.includes(n)) { r = allDraws.length - 1 - i; break; }
+      }
+      return acc + r;
+    }, 0) / nums.length;
+
+    return {
+      total: parseFloat(total.toFixed(1)),
+      advScore: parseFloat(advScore.toFixed(1)),
+      ensembleScore: parseFloat(ensembleScore.toFixed(1)),
+      pairScore: parseFloat(pairScore.toFixed(1)),
+      distScore: parseFloat(distScore.toFixed(1)),
+      sum: s, zScore: zS.toFixed(2), evens, odds: PICK - evens,
+      ritMedio: parseFloat(ritMedio.toFixed(0)),
+      pairBonus: parseFloat(pairBonus.toFixed(2)),
+    };
+  }
+
+  const genera = () => {
+    setLoading(true); setResults([]); setSelSS({}); setSavedIds(new Set());
+    setProgress("⚙️ Calcolo modelli...");
+
+    setTimeout(() => {
+      // ── Calcola tutti i modelli ──
+      const advScores = computeAdvancedScores(allDraws, muReale, sigmaReale);
+      const ensembleScores = computeEnsemblePredictive(allDraws, muReale, sigmaReale);
+      const pairData = computePairCorrelations(allDraws);
+      const regression = computeRegression(allDraws);
+      const lstm = computeLSTM(allDraws);
+
+      setProgress("🔮 Generazione candidati...");
+
+      setTimeout(() => {
+        const rng = mkRng(Date.now());
+        const CANDIDATES_PER_STRATEGY = 30;
+        const allCandidates = [];
+        const seenKeys = new Set();
+
+        // Range somma: unione dei range predetti dai modelli
+        const loB = Math.min(
+          Math.round(muReale - sigmaReale),
+          regression.predictedRange.lo,
+          lstm.predictedRange.lo
+        );
+        const hiB = Math.max(
+          Math.round(muReale + sigmaReale),
+          regression.predictedRange.hi,
+          lstm.predictedRange.hi
+        );
+
+        // ── STRATEGIA 1: Pool pesato per score avanzato ──
+        const poolAdv = advScores.map(s => s.num);
+        const weightsAdv = advScores.map(s => Math.max(0.05, s.unified / 100 + 0.3));
+        const totalWAdv = weightsAdv.reduce((a, b) => a + b, 0);
+        const cumWAdv = []; let accA = 0;
+        weightsAdv.forEach(w => { accA += w; cumWAdv.push(accA / totalWAdv); });
+        function pickAdv() { const r = rng(); for (let i = 0; i < cumWAdv.length; i++) if (r <= cumWAdv[i]) return poolAdv[i]; return poolAdv[poolAdv.length - 1]; }
+
+        let sc1 = 0;
+        while (allCandidates.filter(c => c.strategy === "adv").length < CANDIDATES_PER_STRATEGY && sc1 < 500000) {
+          sc1++;
+          const nums = new Set(); let att = 0;
+          while (nums.size < PICK && att < 200) { nums.add(pickAdv()); att++; }
+          if (nums.size < PICK) continue;
+          const arr = [...nums].sort((a, b) => a - b);
+          const s = arr.reduce((a, b) => a + b, 0);
+          if (s < loB || s > hiB) continue;
+          const key = arr.join(",");
+          if (seenKeys.has(key)) continue;
+          seenKeys.add(key);
+          allCandidates.push({ nums: arr, strategy: "adv" });
+        }
+
+        // ── STRATEGIA 2: Pool pesato per ensemble predittivo ──
+        const poolEns = ensembleScores.map(s => s.num);
+        const weightsEns = ensembleScores.map(s => Math.max(0.05, s.ensemble / 100 + 0.3));
+        const totalWEns = weightsEns.reduce((a, b) => a + b, 0);
+        const cumWEns = []; let accE = 0;
+        weightsEns.forEach(w => { accE += w; cumWEns.push(accE / totalWEns); });
+        function pickEns() { const r = rng(); for (let i = 0; i < cumWEns.length; i++) if (r <= cumWEns[i]) return poolEns[i]; return poolEns[poolEns.length - 1]; }
+
+        let sc2 = 0;
+        while (allCandidates.filter(c => c.strategy === "ens").length < CANDIDATES_PER_STRATEGY && sc2 < 500000) {
+          sc2++;
+          const nums = new Set(); let att = 0;
+          while (nums.size < PICK && att < 200) { nums.add(pickEns()); att++; }
+          if (nums.size < PICK) continue;
+          const arr = [...nums].sort((a, b) => a - b);
+          const s = arr.reduce((a, b) => a + b, 0);
+          if (s < loB || s > hiB) continue;
+          const key = arr.join(",");
+          if (seenKeys.has(key)) continue;
+          seenKeys.add(key);
+          allCandidates.push({ nums: arr, strategy: "ens" });
+        }
+
+        // ── STRATEGIA 3: Pool pesato combinato (media dei due score) ──
+        const combinedWeights = Array.from({ length: POOL }, (_, i) => {
+          const num = i + 1;
+          const a = advScores.find(x => x.num === num);
+          const e = ensembleScores.find(x => x.num === num);
+          return Math.max(0.05, ((a ? a.unified : 0) + (e ? e.ensemble : 0)) / 200 + 0.3);
+        });
+        const poolComb = Array.from({ length: POOL }, (_, i) => i + 1);
+        const totalWComb = combinedWeights.reduce((a, b) => a + b, 0);
+        const cumWComb = []; let accC = 0;
+        combinedWeights.forEach(w => { accC += w; cumWComb.push(accC / totalWComb); });
+        function pickComb() { const r = rng(); for (let i = 0; i < cumWComb.length; i++) if (r <= cumWComb[i]) return poolComb[i]; return poolComb[poolComb.length - 1]; }
+
+        let sc3 = 0;
+        while (allCandidates.filter(c => c.strategy === "comb").length < CANDIDATES_PER_STRATEGY && sc3 < 500000) {
+          sc3++;
+          const nums = new Set(); let att = 0;
+          while (nums.size < PICK && att < 200) { nums.add(pickComb()); att++; }
+          if (nums.size < PICK) continue;
+          const arr = [...nums].sort((a, b) => a - b);
+          const s = arr.reduce((a, b) => a + b, 0);
+          if (s < loB || s > hiB) continue;
+          const key = arr.join(",");
+          if (seenKeys.has(key)) continue;
+          seenKeys.add(key);
+          allCandidates.push({ nums: arr, strategy: "comb" });
+        }
+
+        setProgress("📊 Calcolo score finale...");
+
+        setTimeout(() => {
+          // ── Calcola score finale per tutti i candidati ──
+          const scored = allCandidates.map(c => {
+            const score = calcScoreFinale(c.nums, advScores, ensembleScores, pairData, regression, muReale, sigmaReale, allDraws);
+            return { ...c, ...score };
+          });
+
+          // Ordina per score totale e prendi i top qty
+          const top = scored.sort((a, b) => b.total - a.total).slice(0, qty);
+
+          // Aggiungi SuperStar suggerito
+          const final = top.map(r => ({
+            ...r,
+            topSS: getSSSuggestions(allDraws, r.sum, sigmaReale)[0]?.num || null,
+          }));
+
+          setResults(final);
+          setProgress("");
+          setLoading(false);
+        }, 100);
+      }, 100);
+    }, 150);
+  };
+
+  const salvaBiglietto = (r, idx) => {
+    const ss = selSS[idx] || r.topSS;
+    const ticket = {
+      id: Date.now() + idx, nums: r.nums, superstar: ss,
+      date: new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" }),
+      concorso: allDraws[allDraws.length - 1]?.n || 0,
+      strategy: "unificato", sum: r.sum,
+    };
+    const prev = JSON.parse(localStorage.getItem(LS_TICKETS_S) || "[]");
+    localStorage.setItem(LS_TICKETS_S, JSON.stringify([...prev, ticket]));
+    setSavedIds(prev => new Set([...prev, idx]));
+    alert(`✅ Salvata!\n${r.nums.join("-")} | SS:${ss || "—"}`);
+  };
+
+  const strategyIcon = s => s === "adv" ? "🧬" : s === "ens" ? "🔬" : "⭐";
+  const strategyLabel = s => s === "adv" ? "Avanzato" : s === "ens" ? "Predittivo" : "Combinato";
+
+  return (
+    <div>
+      <h2 style={{ color: GEN_COLOR, fontFamily: "Georgia,serif", fontSize: 16, marginBottom: 8 }}>⭐ Generatore Unificato</h2>
+      <div style={{ background: "#1a0e00", border: `1px solid ${GEN_COLOR}44`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
+        <div style={{ color: GEN_COLOR, fontWeight: 700, fontSize: 11, marginBottom: 8, letterSpacing: 1, textTransform: "uppercase" }}>Come funziona</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 8, marginBottom: 10 }}>
+          {[
+            { icon: "🧬", label: "Avanzato", desc: "Markov+Cicli+Bayes", pct: "40%" },
+            { icon: "🔬", label: "Predittivo", desc: "Ensemble 5 modelli", pct: "35%" },
+            { icon: "🔗", label: "Coppie", desc: "Correlazioni storiche", pct: "15%" },
+            { icon: "📐", label: "Somma", desc: "Distanza da predetta", pct: "10%" },
+          ].map(m => (
+            <div key={m.label} style={{ background: "#0a0800", border: `1px solid ${GEN_COLOR}22`, borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
+              <div style={{ fontSize: 16, marginBottom: 3 }}>{m.icon}</div>
+              <div style={{ color: GEN_COLOR, fontSize: 10, fontWeight: 700 }}>{m.label}</div>
+              <div style={{ color: C.dim, fontSize: 8, marginBottom: 3 }}>{m.desc}</div>
+              <div style={{ background: `${GEN_COLOR}33`, color: GEN_COLOR, borderRadius: 10, padding: "1px 6px", fontSize: 9, fontWeight: 900, display: "inline-block" }}>{m.pct}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ color: C.dim, fontSize: 10, lineHeight: 1.6 }}>
+          Genera <strong style={{ color: GEN_COLOR }}>90 sestine candidate</strong> con 3 strategie diverse, calcola lo <strong style={{ color: GEN_COLOR }}>score finale unificato</strong> per ognuna e restituisce le migliori.
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
+        <span style={{ color: C.dim, fontSize: 11 }}>Risultati finali:</span>
+        {[3, 5, 10, 15].map(n => (
+          <button key={n} onClick={() => setQty(n)} style={{ background: qty === n ? `${GEN_COLOR}22` : "transparent", color: qty === n ? GEN_COLOR : C.dim, border: `1px solid ${qty === n ? GEN_COLOR : C.border}`, borderRadius: 14, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>{n}</button>
+        ))}
+      </div>
+
+      <button onClick={genera} disabled={loading} style={{ width: "100%", padding: "14px", background: loading ? "#1a0e00" : `linear-gradient(135deg,${GEN_COLOR},#d97706)`, color: loading ? "#555" : "#000", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 900, cursor: loading ? "not-allowed" : "pointer", fontFamily: "Georgia,serif", marginBottom: 12 }}>
+        {loading ? progress || "⏳ Elaborazione..." : "⭐ Genera Sestine Ottimali"}
+      </button>
+
+      {loading && (
+        <div style={{ background: "#0a0800", border: `1px solid ${GEN_COLOR}33`, borderRadius: 8, padding: 12, marginBottom: 12, textAlign: "center" }}>
+          <div style={{ color: GEN_COLOR, fontSize: 12, fontWeight: 700, marginBottom: 6 }}>{progress}</div>
+          <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+            {["🧬 Avanzato", "🔬 Predittivo", "⭐ Combinato"].map(s => (
+              <div key={s} style={{ background: `${GEN_COLOR}22`, color: GEN_COLOR, borderRadius: 6, padding: "3px 8px", fontSize: 9 }}>{s}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {results.length > 0 && (
+        <>
+          <div style={{ color: C.dim, fontSize: 11, marginBottom: 12 }}>
+            <strong style={{ color: GEN_COLOR }}>{results.length} migliori sestine</strong> su 90 candidate · ordinate per score finale unificato
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {results.map((r, i) => {
+              const isBest = i === 0;
+              const ssSugg = getSSSuggestions(allDraws, r.sum, sigmaReale);
+              const top3SS = ssSugg.slice(0, 3);
+              const chosenSS = selSS[i] || r.topSS;
+              const isSaved = savedIds.has(i);
+              const scoreColor = r.total >= 70 ? "#FFD700" : r.total >= 55 ? C.green : r.total >= 40 ? C.teal : C.orange;
+
+              return (
+                <div key={i} style={{ background: "#080810", border: `2px solid ${isBest ? `${GEN_COLOR}88` : `${GEN_COLOR}22`}`, borderLeft: `4px solid ${scoreColor}`, borderRadius: 12, padding: "14px", position: "relative" }}>
+                  {isBest && <div style={{ position: "absolute", top: -10, left: 14, background: GEN_COLOR, color: "#000", fontSize: 9, fontWeight: 900, padding: "2px 10px", borderRadius: 10 }}>🏆 MIGLIORE</div>}
+
+                  {/* Header */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ color: GEN_COLOR, fontFamily: "monospace", fontSize: 11 }}>#{i + 1}</span>
+                      <span style={{ background: `${scoreColor}22`, color: scoreColor, borderRadius: 6, padding: "2px 10px", fontSize: 11, fontWeight: 900 }}>Score {r.total}/100</span>
+                      <span style={{ background: "#1a1a2a", color: C.dim, borderRadius: 5, padding: "2px 7px", fontSize: 9 }}>{strategyIcon(r.strategy)} {strategyLabel(r.strategy)}</span>
+                    </div>
+                    {/* Barra score */}
+                    <div style={{ background: "#0a0a18", borderRadius: 6, height: 8, width: 100, overflow: "hidden" }}>
+                      <div style={{ background: `linear-gradient(90deg,${scoreColor},${GEN_COLOR})`, height: "100%", width: `${r.total}%` }} />
+                    </div>
+                  </div>
+
+                  {/* Breakdown score */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 4, marginBottom: 10 }}>
+                    {[
+                      { l: "🧬 Avanzato", v: r.advScore, max: 40, c: "#22d3ee" },
+                      { l: "🔬 Predittivo", v: r.ensembleScore, max: 35, c: "#e879f9" },
+                      { l: "🔗 Coppie", v: r.pairScore, max: 15, c: C.orange },
+                      { l: "📐 Somma", v: r.distScore, max: 10, c: C.teal },
+                    ].map(row => (
+                      <div key={row.l} style={{ background: "#0a0a18", borderRadius: 6, padding: "5px 6px", textAlign: "center" }}>
+                        <div style={{ color: C.dim, fontSize: 7, marginBottom: 2 }}>{row.l}</div>
+                        <div style={{ color: row.c, fontFamily: "monospace", fontSize: 11, fontWeight: 900 }}>{row.v.toFixed(0)}</div>
+                        <div style={{ background: "#050510", borderRadius: 2, height: 3, overflow: "hidden", marginTop: 2 }}>
+                          <div style={{ background: row.c, height: "100%", width: `${(row.v / row.max) * 100}%` }} />
+                        </div>
+                        <div style={{ color: C.dim, fontSize: 7, marginTop: 1 }}>/{row.max}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Numeri */}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+                    {r.nums.map(n => {
+                      const advRank = (() => { const a = [...Array(POOL)].map((_, i) => i + 1).map(num => ({ num, unified: computeAdvancedScores(allDraws, muReale, sigmaReale).find(x => x.num === num)?.unified || 0 })).sort((a, b) => b.unified - a.unified); return a.findIndex(x => x.num === n); })();
+                      const col = advRank < 10 ? "#FFD700" : advRank < 25 ? C.teal : GEN_COLOR;
+                      return <Ball key={n} num={n} color={col} size={38} glow={advRank < 10} />;
+                    })}
+                  </div>
+
+                  {/* Info sestina */}
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 12 }}>
+                    <span style={{ background: `${GEN_COLOR}22`, color: GEN_COLOR, borderRadius: 5, padding: "2px 8px", fontSize: 10, fontFamily: "monospace", fontWeight: 700 }}>Σ {r.sum}</span>
+                    <span style={{ background: "#12122a", color: C.dim, borderRadius: 5, padding: "2px 8px", fontSize: 10 }}>{r.evens}P–{r.odds}D</span>
+                    <span style={{ background: "#12122a", color: Math.abs(parseFloat(r.zScore)) < 1 ? C.green : C.orange, borderRadius: 5, padding: "2px 8px", fontSize: 10 }}>z={r.zScore}</span>
+                    <span style={{ background: `${C.teal}22`, color: C.teal, borderRadius: 5, padding: "2px 8px", fontSize: 10 }}>rit.medio {r.ritMedio}</span>
+                    {r.pairBonus > 0 && <span style={{ background: `${C.orange}22`, color: C.orange, borderRadius: 5, padding: "2px 8px", fontSize: 10 }}>coppie +{r.pairBonus.toFixed(1)}</span>}
+                  </div>
+
+                  {/* SuperStar */}
+                  <div style={{ background: "#0a0810", border: "1px solid #FFD70022", borderRadius: 10, padding: 10, marginBottom: 10 }}>
+                    <div style={{ color: "#FFD700", fontSize: 10, fontWeight: 700, marginBottom: 8 }}>⭐ SuperStar consigliato — clicca per scegliere</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                      {top3SS.map((s, si) => {
+                        const isCho = chosenSS === s.num;
+                        return (
+                          <div key={s.num} onClick={() => setSelSS(prev => ({ ...prev, [i]: s.num }))} style={{ textAlign: "center", cursor: "pointer", padding: "6px 8px", background: isCho ? "#FFD70018" : "#0e0e1c", border: `2px solid ${isCho ? "#FFD700" : "#2a2a3a"}`, borderRadius: 8, boxShadow: isCho ? "0 0 10px #FFD70044" : "none" }}>
+                            <Ball num={s.num} size={30} gold={isCho} color={isCho ? "#FFD700" : "#888"} glow={isCho} />
+                            <div style={{ color: isCho ? "#FFD700" : si === 0 ? "#E8B84B" : "#888", fontSize: 9, marginTop: 3, fontWeight: 700 }}>{s.pct}%</div>
+                            <div style={{ color: C.dim, fontSize: 8 }}>r.{s.ritardo}</div>
+                          </div>
+                        );
+                      })}
+                      <div style={{ display: "flex", alignItems: "center", paddingLeft: 8, borderLeft: "1px solid #222", gap: 6 }}>
+                        <Ball num={chosenSS || "?"} size={32} gold={!!chosenSS} color={chosenSS ? "#FFD700" : "#444"} glow={!!chosenSS} />
+                        <span style={{ color: "#FFD700", fontFamily: "monospace", fontWeight: 700, fontSize: 14 }}>{chosenSS || "—"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Salva */}
+                  <button onClick={() => salvaBiglietto(r, i)} disabled={isSaved} style={{ width: "100%", padding: "10px", background: isSaved ? `${C.green}22` : `linear-gradient(135deg,${GEN_COLOR},#d97706)`, color: isSaved ? C.green : "#000", border: `2px solid ${isSaved ? C.green : GEN_COLOR}`, borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: isSaved ? "default" : "pointer", fontFamily: "inherit" }}>
+                    {isSaved ? "✅ Salvata in Biglietti" : "💾 Salva in Biglietti"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: 14, fontSize: 9, color: "#333", lineHeight: 1.8, borderTop: "1px solid #111", paddingTop: 10 }}>
+            Score finale (0–100): 🧬 Score avanzato (+40) · 🔬 Ensemble predittivo (+35) · 🔗 Coppie correlate (+15) · 📐 Somma predetta (+10). Nessun potere predittivo.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 const TABS=[
   {id:"animazione",icon:"📈",label:"Animazione"},
   {id:"segnali",icon:"🔬",label:"Segnali & Freq."},
@@ -2352,6 +2730,7 @@ const TABS=[
   {id:"suggeritore",icon:"🔮",label:"Suggeritore"},
   {id:"analisi",icon:"🧬",label:"Analisi"},
   {id:"predittivo",icon:"🔬",label:"Predittivo"},
+  {id:"unificato",icon:"⭐",label:"Unificato"},
   {id:"confronto",icon:"🔁",label:"Confronto"},
   {id:"estrazioni",icon:"📥",label:"Estrazioni"},
   {id:"biglietti",icon:"🎫",label:"Biglietti"},
@@ -2429,7 +2808,7 @@ export default function App(){
           </div>)}
         </div>
         <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`}}>
-          {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?`linear-gradient(135deg,${t.id==="biglietti"?C.purple:t.id==="suggeritore"?"#a78bfa":t.id==="predittivo"?"#e879f9":ACCENT},#2BA89A)`:"transparent",color:tab===t.id?"#fff":C.dim,border:tab===t.id?"none":`1px solid ${C.border}`,borderRadius:20,padding:"7px 10px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{t.icon} {t.label}</button>))}
+          {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?`linear-gradient(135deg,${t.id==="biglietti"?C.purple:t.id==="suggeritore"?"#a78bfa":t.id==="predittivo"?"#e879f9":t.id==="unificato"?"#f59e0b":ACCENT},#2BA89A)`:"transparent",color:tab===t.id?"#fff":C.dim,border:tab===t.id?"none":`1px solid ${C.border}`,borderRadius:20,padding:"7px 10px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{t.icon} {t.label}</button>))}
         </div>
         {tab==="animazione"&&<TabAnimazione/>}
         {tab==="segnali"&&<TabSegnali/>}
