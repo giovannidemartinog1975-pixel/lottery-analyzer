@@ -1490,8 +1490,7 @@ function TabGeneratore(){
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10}}>
             {[{l:"Σ",v:ticket.sum,c:ACCENT},{l:"Δ da μ",v:(ticket.sum>muCustom?"+":"")+(ticket.sum-muCustom),c:C.teal},{l:"Δ da 277.5",v:(ticket.sum>MU_TEO?"+":"")+(ticket.sum-MU_TEO).toFixed(1),c:ticket.sum>MU_TEO?C.orange:C.teal},{l:"z",v:zOf(ticket.sum,MU_TEO,SIGMA_TEO).toFixed(2),c:Math.abs(zOf(ticket.sum,MU_TEO,SIGMA_TEO))<1?C.green:C.orange}].map(x=>(<div key={x.l} style={{background:"#0a0a18",borderRadius:6,padding:8,textAlign:"center"}}><div style={{color:C.dim,fontSize:9}}>{x.l}</div><div style={{color:x.c,fontSize:15,fontWeight:900,fontFamily:"monospace"}}>{x.v}</div></div>))}
           </div>
-          <button onClick={()=>{const t={id:Date.now(),nums:ticket.nums,superstar:selSSBonus[0]||superstar,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy,sum:ticket.sum};const prev=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");localStorage.setItem(LS_TICKETS_S,JSON.stringify([...prev,t]));alert(`✅ Sestina salvata!\n${ticket.nums.join("-")} | SS:${selSSBonus[0]||superstar||"—"}`);}} style={{width:"100%",padding:"10px",background:`${C.purple}22`,color:C.purple,border:`2px solid ${C.purple}`,borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva → 🎫 Biglietti</button>
-        </div>)}
+          <button onClick={async()=>{const t={id:Date.now(),nums:ticket.nums,superstar:selSSBonus[0]||superstar,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy,sum:ticket.sum};await salvaTicketSE(t);alert(`✅ Sestina salvata!\n${ticket.nums.join("-")} | SS:${selSSBonus[0]||superstar||"—"}`);}} style={{width:"100%",padding:"10px",background:`${C.purple}22`,color:C.purple,border:`2px solid ${C.purple}`,borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva → 🎫 Biglietti</button>
       </div>)}
       {mode==="manual"&&(<div>
         <div style={{color:C.dim,fontSize:11,marginBottom:10}}>Inserisci {PICK} numeri (1–90).</div>
@@ -1764,65 +1763,6 @@ function TabEstrazioni({onUpdate}){
   );
 }
 
-function TabBiglietti(){
-  const allDraws=useDraws();
-  const [tickets,setTickets]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");}catch{return [];}});
-  const [expanded,setExpanded]=useState(null);
-  const [confirmDel,setConfirmDel]=useState(null);
-  useEffect(()=>{try{setTickets(JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]"));}catch{}},[allDraws]);
-  const persist=(list)=>{localStorage.setItem(LS_TICKETS_S,JSON.stringify(list));setTickets(list);};
-  const remove=(id)=>{persist(tickets.filter(t=>t.id!==id));setConfirmDel(null);setExpanded(null);};
-  function getResults(ticket){
-    const fromN=ticket.concorso||0;
-    return allDraws.filter(d=>(d.n||0)>fromN).map(d=>{
-      const matches=d.nums.filter(n=>ticket.nums.includes(n));
-      return{n:d.n,date:d.date,nums:d.nums,superstar:d.superstar,pts:matches.length,matches};
-    });
-  }
-  return(
-    <div>
-      <h2 style={{color:C.purple,fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>🎫 Biglietti Giocati</h2>
-      <p style={{color:C.dim,fontSize:11,marginBottom:16,lineHeight:1.7}}>Confronto automatico con le estrazioni successive ({allDraws.length} totali).</p>
-      {tickets.length===0&&(<div style={{textAlign:"center",color:C.dim,padding:"28px 0",fontSize:13,background:C.card,border:`1px solid ${C.border}`,borderRadius:12}}>Nessun biglietto.<br/><span style={{fontSize:11}}>Genera nel tab 🎯 e premi 💾 Salva.</span></div>)}
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {[...tickets].reverse().map(ticket=>{
-          const results=getResults(ticket);
-          const bestPts=results.length?Math.max(...results.map(r=>r.pts)):0;
-          const bestCol=PRIZE_COLORS[Math.min(bestPts,6)]||C.dim;
-          const isOpen=expanded===ticket.id;
-          const pendingDel=confirmDel===ticket.id;
-          return(<div key={ticket.id} style={{background:C.card,border:`2px solid ${pendingDel?"#C94040":bestPts>=2?bestCol:C.border}`,borderRadius:12,overflow:"hidden"}}>
-            <div style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",cursor:"pointer"}} onClick={()=>{if(!pendingDel)setExpanded(isOpen?null:ticket.id);}}>
-              <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
-                {ticket.nums.map(n=>{const hitAny=results.some(r=>r.matches.includes(n));return<Ball key={n} num={n} color={hitAny?bestCol:ACCENT} size={30} glow={hitAny&&bestPts>=2}/>;})}{typeof ticket.superstar==="number"&&<><span style={{color:C.dim,fontSize:14,alignSelf:"center"}}>│</span><Ball num={ticket.superstar} size={28} gold/><span style={{color:"#FFD700",fontSize:8}}>SS</span></>}
-              </div>
-              <div style={{flex:1,minWidth:120}}>
-                <div style={{color:C.dim,fontSize:10}}>Giocato {ticket.date} · dopo #{ticket.concorso||"?"} · Σ={sm(ticket.nums)}</div>
-                {results.length>0?(<div style={{color:bestPts>=2?bestCol:C.dim,fontWeight:700,fontSize:12}}>{bestPts>=2?`🎯 ${PRIZE_LABELS[Math.min(bestPts,6)]} — max ${bestPts}✓`:`Nessun punto`}</div>):<div style={{color:C.dim,fontSize:11}}>⏳ In attesa</div>}
-              </div>
-              {bestPts>=2&&!pendingDel&&(<div style={{background:`${bestCol}22`,border:`2px solid ${bestCol}`,borderRadius:8,padding:"5px 10px",textAlign:"center"}}><div style={{color:bestCol,fontSize:20,fontWeight:900,fontFamily:"monospace"}}>{bestPts}</div><div style={{color:bestCol,fontSize:8}}>punti</div></div>)}
-              <span style={{color:C.dim}}>{isOpen&&!pendingDel?"▲":"▼"}</span>
-            </div>
-            {pendingDel&&(<div style={{background:"#1a0606",borderTop:"1px solid #C94040",padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}><span style={{color:"#C94040",fontSize:12,fontWeight:700,flex:1}}>🗑 Confermi eliminazione?</span><button onClick={()=>remove(ticket.id)} style={{background:"#C94040",color:"#fff",border:"none",borderRadius:7,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Sì</button><button onClick={()=>setConfirmDel(null)} style={{background:"transparent",color:C.dim,border:`1px solid ${C.border}`,borderRadius:7,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>No</button></div>)}
-            {isOpen&&!pendingDel&&(<div style={{borderTop:`1px solid ${C.border}`,padding:"12px 14px",background:"#06060e"}}>
-              {results.length===0?<div style={{color:C.dim,fontSize:12,textAlign:"center"}}>⏳ Nessuna estrazione successiva.</div>:(
-                <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  {results.map(r=>{const col=PRIZE_COLORS[Math.min(r.pts,6)]||C.dim;const hasPts=r.pts>0;return(<div key={r.n} style={{background:r.pts>=2?`${col}10`:hasPts?`${col}08`:"#07070f",border:`1px solid ${r.pts>=2?col:hasPts?col+"66":C.border}`,borderRadius:8,padding:"8px 12px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6,marginBottom:6}}><span style={{color:C.dim,fontSize:11}}>Est. <strong style={{color:ACCENT}}>#{r.n}</strong> · {r.date?.substring(0,5)||""}</span><span style={{color:col,fontWeight:700,fontSize:12}}>{PRIZE_LABELS[Math.min(r.pts,6)]}</span></div>
-                    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{r.nums.map(n=>{const hit=ticket.nums.includes(n);return(<div key={n} style={{position:"relative"}}><Ball num={n} color={hit?col:"#2a2a3a"} size={28} glow={hit&&r.pts>=2}/>{hit&&<div style={{position:"absolute",top:-3,right:-3,width:9,height:9,borderRadius:"50%",background:col,border:"1px solid #06060e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:6,color:"#000",fontWeight:900}}>✓</div>}</div>);})}</div>
-                    {r.matches.length>0&&(<div style={{background:`${col}15`,borderRadius:5,padding:"4px 10px",display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginTop:6}}><span style={{color:col,fontSize:10,fontWeight:700}}>✓ Indovinati:</span><div style={{display:"flex",gap:4}}>{r.matches.map(n=><span key={n} style={{background:`${col}33`,border:`1px solid ${col}`,borderRadius:4,padding:"1px 6px",color:col,fontFamily:"monospace",fontSize:11,fontWeight:700}}>{n}</span>)}</div></div>)}
-                  </div>);})}
-                </div>
-              )}
-              <button onClick={()=>setConfirmDel(ticket.id)} style={{background:"transparent",color:"#C94040",border:"1px solid #C9404033",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",marginTop:12}}>🗑 Elimina</button>
-            </div>)}
-          </div>);
-        })}
-      </div>
-      {tickets.length>0&&(<div style={{marginTop:14,display:"flex",gap:8,alignItems:"center"}}><button onClick={()=>persist([])} style={{background:"transparent",color:"#C94040",border:"1px solid #C9404033",borderRadius:8,padding:"7px 16px",fontSize:11,cursor:"pointer"}}>🗑 Cancella tutti</button><span style={{color:C.dim,fontSize:10}}>{tickets.length} bigliett{tickets.length===1?"o":"i"}</span></div>)}
-    </div>
-  );
-}
 // ═══════════════════════════════════════════════════════════════
 // MOTORE PREDITTIVO v2 — inserire prima della costante TABS
 // ═══════════════════════════════════════════════════════════════
@@ -2091,11 +2031,10 @@ function TabPredittivo() {
     },100);
   };
 
-  const salvaBiglietto=(r,idx)=>{
+  const salvaBiglietto=async(r,idx)=>{
     const ss=selSS[idx]||getSSSuggestions(allDraws,r.sum,sigmaReale)[0]?.num||null;
     const ticket={id:Date.now()+idx,nums:r.nums,superstar:ss,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:"predittivo",sum:r.sum};
-    const prev=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");
-    localStorage.setItem(LS_TICKETS_S,JSON.stringify([...prev,ticket]));
+    await salvaTicketSE(ticket);
     setSavedIds(prev=>new Set([...prev,idx]));
     alert(`✅ Salvata!\n${r.nums.join("-")} | SS:${ss||"—"}`);
   };
@@ -2522,15 +2461,18 @@ function TabGeneratoreUnificato() {
     }, 100);
   };
 
-  const salvaBiglietto = (r, idx) => {
-    const ss = selSS[idx] || r.topSS;
-    const ticket = { id:Date.now()+idx, nums:r.nums, superstar:ss, date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}), concorso:allDraws[allDraws.length-1]?.n||0, strategy:"unificato", sum:r.sum };
-    const prev = JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");
-    localStorage.setItem(LS_TICKETS_S, JSON.stringify([...prev,ticket]));
+  const salvaBiglietto=async(r,idx)=>{
+    const ss=selSS[idx]||r.topSS;
+    const ticket={
+      id:Date.now()+idx,nums:r.nums,superstar:ss,
+      date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),
+      concorso:allDraws[allDraws.length-1]?.n||0,
+      strategy:"unificato",sum:r.sum,
+    };
+    await salvaTicketSE(ticket);
     setSavedIds(prev=>new Set([...prev,idx]));
     alert(`✅ Salvata!\n${r.nums.join("-")} | SS:${ss||"—"}`);
   };
-
   const strategyIcon = s => s==="adv"?"🧬":s==="ens"?"🔬":"⭐";
   const strategyLabel = s => s==="adv"?"Avanzato":s==="ens"?"Predittivo":"Combinato";
 
@@ -2693,7 +2635,208 @@ function TabGeneratoreUnificato() {
     </div>
   );
 }
-const TABS=[
+// ═══════════════════════════════════════════════════════════════
+// PATCH 1: Sostituisci TabBiglietti con questa versione
+// che legge/scrive su Supabase
+// ═══════════════════════════════════════════════════════════════
+
+function TabBiglietti(){
+  const allDraws=useDraws();
+  const [tickets,setTickets]=useState([]);
+  const [loadingTickets,setLoadingTickets]=useState(true);
+  const [expanded,setExpanded]=useState(null);
+  const [confirmDel,setConfirmDel]=useState(null);
+
+  // Carica biglietti da Supabase + localStorage
+  const loadTickets=async()=>{
+    setLoadingTickets(true);
+    try{
+      const {data,error}=await supabase.from("tickets").select("*").eq("lotteria","superenalotto").order("created_at",{ascending:false});
+      if(error) throw error;
+      const dbTickets=data.map(r=>({
+        id:r.id,nums:r.nums,superstar:r.bonus?r.bonus[0]||null:null,
+        date:r.data_gioco||"",concorso:r.concorso||0,
+        strategy:r.strategy||"",sum:r.somma||0,fromDb:true,
+      }));
+      // Merge con localStorage (biglietti locali non ancora su DB)
+      const local=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");
+      const dbIds=new Set(dbTickets.map(t=>String(t.id)));
+      const localOnly=local.filter(t=>!dbIds.has(String(t.id)));
+      setTickets([...dbTickets,...localOnly]);
+    }catch(err){
+      console.error("Tickets load error:",err);
+      // Fallback a localStorage
+      try{setTickets(JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]"));}catch{}
+    }finally{setLoadingTickets(false);}
+  };
+
+  useEffect(()=>{loadTickets();},[]);
+
+  const remove=async(id)=>{
+    try{await supabase.from("tickets").delete().eq("id",id);}catch{}
+    const local=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");
+    localStorage.setItem(LS_TICKETS_S,JSON.stringify(local.filter(t=>t.id!==id)));
+    setTickets(prev=>prev.filter(t=>t.id!==id));
+    setConfirmDel(null);setExpanded(null);
+  };
+
+  function getResults(ticket){
+    const fromN=ticket.concorso||0;
+    return allDraws.filter(d=>(d.n||0)>fromN).map(d=>{
+      const matches=d.nums.filter(n=>ticket.nums.includes(n));
+      return{n:d.n,date:d.date,nums:d.nums,superstar:d.superstar,pts:matches.length,matches};
+    });
+  }
+
+  if(loadingTickets) return(
+    <div style={{textAlign:"center",padding:40,color:C.dim}}>
+      <div style={{fontSize:24,marginBottom:8}}>⏳</div>
+      <div>Caricamento biglietti...</div>
+    </div>
+  );
+
+  return(
+    <div>
+      <h2 style={{color:C.purple,fontFamily:"Georgia,serif",fontSize:16,marginBottom:4}}>🎫 Biglietti Giocati</h2>
+      <div style={{background:`${C.teal}11`,border:`1px solid ${C.teal}33`,borderRadius:8,padding:"6px 12px",marginBottom:12,fontSize:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{color:C.teal}}>🔗 Supabase — sincronizzati su tutti i dispositivi</span>
+        <button onClick={loadTickets} style={{background:"transparent",color:C.teal,border:`1px solid ${C.teal}44`,borderRadius:6,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>↻ Aggiorna</button>
+      </div>
+      <p style={{color:C.dim,fontSize:11,marginBottom:16,lineHeight:1.7}}>
+        {tickets.length} biglietti · confronto automatico con {allDraws.length} estrazioni.
+      </p>
+      {tickets.length===0&&(
+        <div style={{textAlign:"center",color:C.dim,padding:"28px 0",fontSize:13,background:C.card,border:`1px solid ${C.border}`,borderRadius:12}}>
+          Nessun biglietto.<br/><span style={{fontSize:11}}>Genera nel tab 🎯 e premi 💾 Salva.</span>
+        </div>
+      )}
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {tickets.map(ticket=>{
+          const results=getResults(ticket);
+          const bestPts=results.length?Math.max(...results.map(r=>r.pts)):0;
+          const bestCol=PRIZE_COLORS[Math.min(bestPts,6)]||C.dim;
+          const isOpen=expanded===ticket.id;
+          const pendingDel=confirmDel===ticket.id;
+          return(
+            <div key={ticket.id} style={{background:C.card,border:`2px solid ${pendingDel?"#C94040":bestPts>=2?bestCol:C.border}`,borderRadius:12,overflow:"hidden"}}>
+              <div style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",cursor:"pointer"}} onClick={()=>{if(!pendingDel)setExpanded(isOpen?null:ticket.id);}}>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+                  {ticket.nums.map(n=>{const hitAny=results.some(r=>r.matches.includes(n));return<Ball key={n} num={n} color={hitAny?bestCol:ACCENT} size={30} glow={hitAny&&bestPts>=2}/>;})}
+                  {typeof ticket.superstar==="number"&&<><span style={{color:C.dim,fontSize:14,alignSelf:"center"}}>│</span><Ball num={ticket.superstar} size={28} gold/><span style={{color:"#FFD700",fontSize:8}}>SS</span></>}
+                </div>
+                <div style={{flex:1,minWidth:120}}>
+                  <div style={{color:C.dim,fontSize:10}}>
+                    {ticket.date} · dopo #{ticket.concorso||"?"} · Σ={ticket.sum||sm(ticket.nums)}
+                    {ticket.strategy&&<span style={{marginLeft:6,background:`${C.purple}22`,color:C.purple,borderRadius:4,padding:"1px 5px",fontSize:9}}>{ticket.strategy}</span>}
+                    {ticket.fromDb&&<span style={{marginLeft:4,color:C.teal,fontSize:8}}>☁️</span>}
+                  </div>
+                  {results.length>0?(
+                    <div style={{color:bestPts>=2?bestCol:C.dim,fontWeight:700,fontSize:12}}>
+                      {bestPts>=2?`🎯 ${PRIZE_LABELS[Math.min(bestPts,6)]} — max ${bestPts}✓`:`Nessun punto`}
+                    </div>
+                  ):<div style={{color:C.dim,fontSize:11}}>⏳ In attesa</div>}
+                </div>
+                {bestPts>=2&&!pendingDel&&(
+                  <div style={{background:`${bestCol}22`,border:`2px solid ${bestCol}`,borderRadius:8,padding:"5px 10px",textAlign:"center"}}>
+                    <div style={{color:bestCol,fontSize:20,fontWeight:900,fontFamily:"monospace"}}>{bestPts}</div>
+                    <div style={{color:bestCol,fontSize:8}}>punti</div>
+                  </div>
+                )}
+                <span style={{color:C.dim}}>{isOpen&&!pendingDel?"▲":"▼"}</span>
+              </div>
+              {pendingDel&&(
+                <div style={{background:"#1a0606",borderTop:"1px solid #C94040",padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                  <span style={{color:"#C94040",fontSize:12,fontWeight:700,flex:1}}>🗑 Confermi eliminazione?</span>
+                  <button onClick={()=>remove(ticket.id)} style={{background:"#C94040",color:"#fff",border:"none",borderRadius:7,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Sì</button>
+                  <button onClick={()=>setConfirmDel(null)} style={{background:"transparent",color:C.dim,border:`1px solid ${C.border}`,borderRadius:7,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>No</button>
+                </div>
+              )}
+              {isOpen&&!pendingDel&&(
+                <div style={{borderTop:`1px solid ${C.border}`,padding:"12px 14px",background:"#06060e"}}>
+                  {results.length===0?(
+                    <div style={{color:C.dim,fontSize:12,textAlign:"center"}}>⏳ Nessuna estrazione successiva.</div>
+                  ):(
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {results.map(r=>{
+                        const col=PRIZE_COLORS[Math.min(r.pts,6)]||C.dim;
+                        const hasPts=r.pts>0;
+                        return(
+                          <div key={r.n} style={{background:r.pts>=2?`${col}10`:hasPts?`${col}08`:"#07070f",border:`1px solid ${r.pts>=2?col:hasPts?col+"66":C.border}`,borderRadius:8,padding:"8px 12px"}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6,marginBottom:6}}>
+                              <span style={{color:C.dim,fontSize:11}}>Est. <strong style={{color:ACCENT}}>#{r.n}</strong> · {r.date?.substring(0,5)||""}</span>
+                              <span style={{color:col,fontWeight:700,fontSize:12}}>{PRIZE_LABELS[Math.min(r.pts,6)]}</span>
+                            </div>
+                            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                              {r.nums.map(n=>{
+                                const hit=ticket.nums.includes(n);
+                                return(
+                                  <div key={n} style={{position:"relative"}}>
+                                    <Ball num={n} color={hit?col:"#2a2a3a"} size={28} glow={hit&&r.pts>=2}/>
+                                    {hit&&<div style={{position:"absolute",top:-3,right:-3,width:9,height:9,borderRadius:"50%",background:col,border:"1px solid #06060e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:6,color:"#000",fontWeight:900}}>✓</div>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {r.matches.length>0&&(
+                              <div style={{background:`${col}15`,borderRadius:5,padding:"4px 10px",display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
+                                <span style={{color:col,fontSize:10,fontWeight:700}}>✓ Indovinati:</span>
+                                <div style={{display:"flex",gap:4}}>
+                                  {r.matches.map(n=><span key={n} style={{background:`${col}33`,border:`1px solid ${col}`,borderRadius:4,padding:"1px 6px",color:col,fontFamily:"monospace",fontSize:11,fontWeight:700}}>{n}</span>)}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <button onClick={()=>setConfirmDel(ticket.id)} style={{background:"transparent",color:"#C94040",border:"1px solid #C9404033",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",marginTop:12}}>🗑 Elimina</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {tickets.length>0&&(
+        <div style={{marginTop:14,display:"flex",gap:8,alignItems:"center"}}>
+          <span style={{color:C.dim,fontSize:10}}>{tickets.length} biglietti totali</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PATCH 2: Funzione helper per salvare biglietto su Supabase
+// Sostituisce il salvataggio localStorage in tutti i tab
+// Incolla questa funzione dopo TabBiglietti e prima di TABS
+// ═══════════════════════════════════════════════════════════════
+
+async function salvaTicketSE(ticket){
+  // Salva su localStorage come backup
+  const prev=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");
+  const exists=prev.some(t=>t.id===ticket.id);
+  if(!exists) localStorage.setItem(LS_TICKETS_S,JSON.stringify([...prev,ticket]));
+  // Salva su Supabase
+  try{
+    const {error}=await supabase.from("tickets").upsert({
+      id:ticket.id,
+      lotteria:"superenalotto",
+      nums:ticket.nums,
+      bonus:ticket.superstar?[ticket.superstar]:null,
+      data_gioco:ticket.date,
+      concorso:ticket.concorso,
+      strategy:ticket.strategy,
+      somma:ticket.sum,
+    });
+    if(error) throw error;
+    return true;
+  }catch(err){
+    console.error("Ticket save error:",err);
+    return false;
+  }
+}
+  const TABS=[
   {id:"animazione",icon:"📈",label:"Animazione"},
   {id:"segnali",icon:"🔬",label:"Segnali & Freq."},
   {id:"banda",icon:"📐",label:"Banda Adattiva"},
