@@ -1077,9 +1077,9 @@ function TabSuggeritore(){
   const [ratioMode,setRatioMode]=useState("auto");
   const [pesoRitardo,setPesoRitardo]=useState(50);
   const [qty,setQty]=useState(5);
-  const [results,setResults]=useState([]);
+  const [results,setResults]=useState(()=>{try{const s=sessionStorage.getItem("se_sugg_results");return s?JSON.parse(s):[];}catch{return [];}});
   const [loading,setLoading]=useState(false);
-  const [selSS,setSelSS]=useState({});
+  const [selSS,setSelSS]=useState(()=>{try{const s=sessionStorage.getItem("se_sugg_selss");return s?JSON.parse(s):{};}catch{return {};}});
   const [savedIds,setSavedIds]=useState(new Set());
 
   const winDraws=useMemo(()=>allDraws.slice(-Math.min(winSize,allDraws.length)),[allDraws,winSize]);
@@ -1172,8 +1172,8 @@ function TabSuggeritore(){
         found.push({nums:arr,sum:s,evens,odds:PICK-evens,anomaly,ritMedio,zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2),quality,topSS});
       }
       found.sort((a,b)=>b.quality-a.quality);
-      setResults(found);
-      setLoading(false);
+      try{sessionStorage.setItem("se_sugg_results",JSON.stringify(found));}catch{}
+      setResults(found);setLoading(false);
     },50);
   };
 
@@ -2003,9 +2003,9 @@ function TabPredittivo() {
   const [computed,setComputed]=useState(null);
   const [loading,setLoading]=useState(false);
   const [qty,setQty]=useState(5);
-  const [sestine,setSestine]=useState([]);
+  const [sestine,setSestine]=useState(()=>{try{const s=sessionStorage.getItem("se_pred_sestine");return s?JSON.parse(s):[];}catch{return [];}});
   const [genLoading,setGenLoading]=useState(false);
-  const [selSS,setSelSS]=useState({});
+  const [selSS,setSelSS]=useState(()=>{try{const s=sessionStorage.getItem("se_pred_selss");return s?JSON.parse(s):{};}catch{return {};}});
   const [savedIds,setSavedIds]=useState(new Set());
 
   const esegui=()=>{
@@ -2026,6 +2026,7 @@ function TabPredittivo() {
     setGenLoading(true);setSestine([]);setSavedIds(new Set());
     setTimeout(()=>{
       const result=generatePredictive(computed.ensemble,computed.regression,computed.lstm,qty,allDraws,muReale,sigmaReale);
+      try{sessionStorage.setItem("se_pred_sestine",JSON.stringify(result));}catch{}
       setSestine(result);
       setGenLoading(false);
     },100);
@@ -2329,10 +2330,10 @@ function TabGeneratoreUnificato() {
   const [wDist, setWDist] = useState(10);
 
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState([]);
-  const [advScoresRef, setAdvScoresRef] = useState([]);
-  const [selSS, setSelSS] = useState({});
-  const [savedIds, setSavedIds] = useState(new Set());
+  const [results,setResults]=useState(()=>{try{const s=sessionStorage.getItem("se_unif_results");return s?JSON.parse(s):[];}catch{return [];}});
+  const [advScoresRef,setAdvScoresRef]=useState(()=>{try{const s=sessionStorage.getItem("se_unif_adv");return s?JSON.parse(s):[];}catch{return [];}});
+  const [selSS,setSelSS]=useState(()=>{try{const s=sessionStorage.getItem("se_unif_selss");return s?JSON.parse(s):{};}catch{return {};}});
+  const [savedIds,setSavedIds]=useState(new Set());
   const [progress, setProgress] = useState("");
 
   const GEN_COLOR = "#f59e0b";
@@ -2454,7 +2455,10 @@ function TabGeneratoreUnificato() {
               topSS:getSSSuggestions(allDraws,s,sigmaReale)[0]?.num||null,
             };
           });
-          setResults(scored.sort((a,b)=>b.total-a.total).slice(0,qty));
+          const finalResults=scored.sort((a,b)=>b.total-a.total).slice(0,qty);
+          try{sessionStorage.setItem("se_unif_results",JSON.stringify(finalResults));}catch{}
+          try{sessionStorage.setItem("se_unif_adv",JSON.stringify(advScores));}catch{}
+          setResults(finalResults);
           setProgress(""); setLoading(false);
         }, 50);
       }, 50);
