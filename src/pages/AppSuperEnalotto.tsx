@@ -2840,7 +2840,7 @@ async function salvaTicketSE(ticket){
     return false;
   }
 }
-  const TABS=[
+const TABS=[
   {id:"animazione",icon:"📈",label:"Animazione"},
   {id:"segnali",icon:"🔬",label:"Segnali & Freq."},
   {id:"banda",icon:"📐",label:"Banda Adattiva"},
