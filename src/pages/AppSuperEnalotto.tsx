@@ -2928,17 +2928,17 @@ export default function App(){
         <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`}}>
           {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?`linear-gradient(135deg,${t.id==="biglietti"?C.purple:t.id==="suggeritore"?"#a78bfa":t.id==="predittivo"?"#e879f9":t.id==="unificato"?"#f59e0b":ACCENT},#2BA89A)`:"transparent",color:tab===t.id?"#fff":C.dim,border:tab===t.id?"none":`1px solid ${C.border}`,borderRadius:20,padding:"7px 10px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{t.icon} {t.label}</button>))}
         </div>
-        {tab==="animazione"&&<TabAnimazione/>}
-        {tab==="segnali"&&<TabSegnali/>}
-        {tab==="banda"&&<TabBanda/>}
-        {tab==="generatore"&&<TabGeneratore/>}
-        {tab==="suggeritore"&&<TabSuggeritore/>}
-        {tab==="analisi"&&<TabAnalisiAvanzata/>}   
-        {tab==="predittivo"&&<TabPredittivo/>} 
-        {tab==="unificato"&&<TabGeneratoreUnificato/>}   
-        {tab==="confronto"&&<TabConfronto/>}
-        {tab==="estrazioni"&&<TabEstrazioni onUpdate={handleUpdate}/>}
-        {tab==="biglietti"&&<TabBiglietti/>}
+        <div style={{display:tab==="animazione"?"block":"none"}}><TabAnimazione/></div>
+        <div style={{display:tab==="segnali"?"block":"none"}}><TabSegnali/></div>
+        <div style={{display:tab==="banda"?"block":"none"}}><TabBanda/></div>
+        <div style={{display:tab==="generatore"?"block":"none"}}><TabGeneratore/></div>
+        <div style={{display:tab==="suggeritore"?"block":"none"}}><TabSuggeritore/></div>
+        <div style={{display:tab==="analisi"?"block":"none"}}><TabAnalisiAvanzata/></div>
+        <div style={{display:tab==="predittivo"?"block":"none"}}><TabPredittivo/></div>
+        <div style={{display:tab==="unificato"?"block":"none"}}><TabGeneratoreUnificato/></div>
+        <div style={{display:tab==="confronto"?"block":"none"}}><TabConfronto/></div>
+        <div style={{display:tab==="estrazioni"?"block":"none"}}><TabEstrazioni onUpdate={handleUpdate}/></div>
+        <div style={{display:tab==="biglietti"?"block":"none"}}><TabBiglietti/></div>
         <div style={{marginTop:24,background:"#070712",border:"1px solid #111122",borderRadius:10,padding:12}}>
           <div style={{color:"#353545",fontSize:10,lineHeight:1.7}}>⚠️ Strumento puramente statistico — nessun potere predittivo. Il gioco può causare dipendenza. Vietato ai minori di 18 anni. Dati storici: {allDraws.length} estrazioni (2024–2026).</div>
         </div>
