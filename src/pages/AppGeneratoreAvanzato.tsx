@@ -45,7 +45,7 @@ export default function AppGeneratoreAvanzato(){
   useEffect(()=>{
     async function load(){
       try{const{data}=await supabase.from("superenalotto").select("*").order("data",{ascending:true});
-        if(data)setDraws(data.map((r:any)=>({nums:[r.n1,r.n2,r.n3,r.n4,r.n5,r.n6].filter(Boolean).sort((a:number,b:number)=>a-b),superstar:r.superstar||undefined})));}
+        if(data)setDraws(data.map((r:any)=>({nums:[r.n1,r.n2,r.n3,r.n4,r.n5,r.n6].filter(Boolean).sort((a,b:number)=>a-b),superstar:r.superstar||undefined})));}
       catch(e){console.error(e);}
       setLoadingDraws(false);
     }
@@ -69,7 +69,7 @@ export default function AppGeneratoreAvanzato(){
   const [genScanned,setGenScanned]=useState(0);
   const [genMs,setGenMs]=useState(0);
   const [selected,setSelected]=useState<Set<string>>(new Set());
-  const [chosenSS,setChosenSS]=useState<Record<string,number>>({});
+  const [chosenSS,setChosenSS]=useState({});
   const workerRef=useRef<Worker|null>(null);
 
   const decineStats=useMemo(()=>{
