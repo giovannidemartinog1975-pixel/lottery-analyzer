@@ -2795,6 +2795,34 @@ function TabBiglietti(){
           );
         })}
       </div>
+      {tickets.length>0&&(()=>{
+  const strategies=["tattico","suggeritore","unificato","predittivo","auto"];
+  const stratColors={"tattico":"#FF6B35","suggeritore":"#a78bfa","unificato":"#f59e0b","predittivo":"#e879f9","auto":ACCENT};
+  const stratIcons={"tattico":"⚡","suggeritore":"🔮","unificato":"⭐","predittivo":"🔬","auto":"🤖"};
+  const ticketsWithPts=tickets.map(ticket=>{const fromN=ticket.concorso||0;const draws=allDraws.filter(d=>(d.n||0)>fromN);const maxPts=draws.length>0?Math.max(...draws.map(d=>d.nums.filter(n=>ticket.nums.includes(n)).length)):0;return {...ticket,maxPts,hasResult:draws.length>0};});
+  const stratStats={};
+  strategies.forEach(s=>{const group=ticketsWithPts.filter(t=>(t.strategy||"auto")===s&&t.hasResult);if(group.length===0)return;const avgPts=group.reduce((a,t)=>a+t.maxPts,0)/group.length;const best=Math.max(...group.map(t=>t.maxPts));const with2plus=group.filter(t=>t.maxPts>=2).length;const with3plus=group.filter(t=>t.maxPts>=3).length;const score=Math.round((avgPts/6)*40+(with2plus/group.length)*40+(best/6)*20);stratStats[s]={count:group.length,avgPts:avgPts.toFixed(2),best,with2plus,with3plus,score};});
+  const sorted=Object.entries(stratStats).sort((a,b)=>b[1].score-a[1].score);
+  if(sorted.length===0)return null;
+  const maxScore=sorted[0][1].score||1;
+  return(<div style={{marginTop:24,background:C.card,border:`1px solid ${ACCENT}33`,borderRadius:12,padding:16}}>
+    <div style={{color:ACCENT,fontWeight:700,fontSize:14,marginBottom:4,fontFamily:"Georgia,serif"}}>📊 Performance Strategie</div>
+    <div style={{color:C.dim,fontSize:10,marginBottom:16,lineHeight:1.6}}>Score composito basato su punti medi, % biglietti con ≥2 punti e miglior risultato. Aggiornato ad ogni estrazione inserita.</div>
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {sorted.map(([s,st],idx)=>{const col=stratColors[s]||ACCENT;const icon=stratIcons[s]||"🎯";const isFirst=idx===0;const barW=Math.round((st.score/maxScore)*100);return(<div key={s} style={{background:isFirst?`${col}11`:"#080816",border:`2px solid ${isFirst?col:col+"44"}`,borderRadius:10,padding:"12px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,flex:1}}><span style={{fontSize:16}}>{icon}</span><span style={{color:col,fontWeight:700,fontSize:13,textTransform:"capitalize"}}>{s}</span>{isFirst&&<span style={{background:col,color:"#000",fontSize:9,fontWeight:900,padding:"2px 8px",borderRadius:10}}>🏆 MIGLIORE</span>}</div>
+          <div style={{background:`${col}22`,border:`2px solid ${col}`,borderRadius:8,padding:"4px 12px",textAlign:"center"}}><div style={{color:col,fontSize:18,fontWeight:900,fontFamily:"monospace"}}>{st.score}</div><div style={{color:col,fontSize:8}}>score</div></div>
+        </div>
+        <div style={{background:"#0a0a18",borderRadius:4,height:8,overflow:"hidden",marginBottom:10}}><div style={{background:`linear-gradient(90deg,${col},${col}88)`,height:"100%",width:`${barW}%`}}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(80px,1fr))",gap:6}}>
+          {[{l:"Biglietti",v:st.count,c:C.dim},{l:"Media punti",v:st.avgPts,c:col},{l:"Miglior risultato",v:`${st.best} pt`,c:st.best>=3?C.orange:st.best>=2?C.teal:C.dim},{l:"Con 2+ punti",v:`${st.with2plus}/${st.count}`,c:st.with2plus>0?C.green:C.dim},{l:"Con 3+ punti",v:`${st.with3plus}/${st.count}`,c:st.with3plus>0?C.orange:C.dim}].map(x=>(<div key={x.l} style={{background:"#0a0a18",borderRadius:6,padding:"6px 8px",textAlign:"center"}}><div style={{color:C.dim,fontSize:8,marginBottom:2}}>{x.l}</div><div style={{color:x.c,fontFamily:"monospace",fontSize:12,fontWeight:700}}>{x.v}</div></div>))}
+        </div>
+      </div>);})}
+    </div>
+    <div style={{marginTop:12,color:C.dim,fontSize:9,lineHeight:1.7,borderTop:`1px solid ${C.border}`,paddingTop:10}}>Score = media punti (40%) + % biglietti con ≥2 punti (40%) + miglior risultato (20%). Solo biglietti con almeno un'estrazione successiva.</div>
+  </div>);
+})()}
       {tickets.length>0&&(
         <div style={{marginTop:14,display:"flex",gap:8,alignItems:"center"}}>
           <span style={{color:C.dim,fontSize:10}}>{tickets.length} biglietti totali</span>
