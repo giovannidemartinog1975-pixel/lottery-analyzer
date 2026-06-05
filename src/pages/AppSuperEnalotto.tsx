@@ -589,14 +589,14 @@ function getMarkovState(nums: number[]): string {
 
 function computeMarkov(draws: any[]) {
   const states = ['LP','LD','MP','MD','HP','HD'];
-  const trans: Record<string,Record<string,number>> = {};
+  const trans = {};
   states.forEach(s=>{trans[s]={};states.forEach(t=>trans[s][t]=0);});
   for(let i=1;i<draws.length;i++){
     const from=getMarkovState(draws[i-1].nums);
     const to=getMarkovState(draws[i].nums);
     trans[from][to]++;
   }
-  const prob: Record<string,Record<string,number>> = {};
+  const prob = {};
   states.forEach(s=>{
     const tot=Object.values(trans[s]).reduce((a:number,b:number)=>a+b,0);
     prob[s]={};
@@ -604,7 +604,7 @@ function computeMarkov(draws: any[]) {
   });
   const lastState=getMarkovState(draws[draws.length-1].nums);
   const nextProbs=prob[lastState]||{};
-  const bestNext=Object.entries(nextProbs).sort((a,b)=>(b[1] as number)-(a[1] as number))[0];
+  const bestNext=Object.entries(nextProbs).sort((a,b)=>(b[1])-(a[1]))[0];
   return {lastState,nextProbs,bestNext,states};
 }
 
@@ -613,7 +613,7 @@ function analyzeCycles(draws: any[]) {
   const N=draws.length;
   return Array.from({length:POOL},(_,i)=>{
     const num=i+1;
-    const appearances: number[]=[];
+    const appearances=[];
     draws.forEach((d,idx)=>{if(d.nums.includes(num))appearances.push(idx);});
     if(appearances.length<2) return {num,cycle:N,phase:0,score:0,currentGap:N,lastApp:-1};
     const gaps=[];
@@ -687,7 +687,7 @@ function computeClusters(draws: any[], muReale: number, sigmaReale: number) {
 // ─── ENTROPIA LOCALE ─────────────────────────────────────────
 function localEntropy(window: any[]): number {
   const freq=new Array(POOL+1).fill(0);
-  window.forEach(d=>d.nums.forEach((n:number)=>freq[n]++));
+  window.forEach(d=>d.nums.forEach((n)=>freq[n]++));
   const total=window.length*PICK;
   let H=0;
   for(let i=1;i<=POOL;i++){
@@ -768,14 +768,7 @@ function computeAdvancedScores(draws: any[], muReale: number, sigmaReale: number
 }
 
 // ─── AGGIORNA calcQualityScore con score avanzato ─────────────
-function calcQualityScoreAdvanced(
-  nums: number[],
-  allDraws: any[],
-  freq: number[],
-  sigmaReale: number,
-  muReale: number,
-  advScores: ReturnType<typeof computeAdvancedScores>
-): number {
+ function calcQualityScoreAdvanced(nums, allDraws, freq, sigmaReale, muReale, advScores) {
   const s=nums.reduce((a,b)=>a+b,0);
   const zS=Math.abs((s-muReale)/Math.max(sigmaReale,1));
 
@@ -807,7 +800,7 @@ function TabAnalisiAvanzata() {
   const series=useMemo(()=>buildSeries(allDraws),[allDraws]);
   const sums=series.map(d=>d.sum);
   const muReale=avg(sums),sigmaReale=std(sums);
-  const [computed,setComputed]=useState<any>(null);
+  const [computed,setComputed]=useState(null);
   const [loading,setLoading]=useState(false);
 
   const esegui=()=>{
@@ -823,12 +816,12 @@ function TabAnalisiAvanzata() {
     },100);
   };
 
-  const stateLabels: Record<string,string>={
+  const stateLabels={
     LP:"Σ Bassa+Pari",LD:"Σ Bassa+Disp",
     MP:"Σ Media+Pari",MD:"Σ Media+Disp",
     HP:"Σ Alta+Pari",HD:"Σ Alta+Disp"
   };
-  const stateColors: Record<string,string>={
+  const stateColors={
     LP:C.teal,LD:C.blue,MP:ACCENT,MD:C.orange,HP:C.red,HD:C.purple
   };
 
@@ -863,7 +856,7 @@ function TabAnalisiAvanzata() {
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
-            {computed.markov.states.map((s:string)=>{
+            {computed.markov.states.map((s)=>{
               const p=computed.markov.nextProbs[s]||0;
               const col=stateColors[s]||C.dim;
               const isBest=s===computed.markov.bestNext?.[0];
@@ -871,7 +864,7 @@ function TabAnalisiAvanzata() {
                 <div key={s} style={{background:isBest?"#FFD70011":"#080816",border:`1px solid ${isBest?"#FFD700":col}33`,borderRadius:7,padding:"6px 8px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
                     <span style={{color:col,fontSize:10,fontWeight:700}}>{s}</span>
-                    <span style={{color:isBest?"#FFD700":C.dim,fontSize:10,fontFamily:"monospace"}}>{((p as number)*100).toFixed(0)}%</span>
+                    <span style={{color:isBest?"#FFD700":C.dim,fontSize:10,fontFamily:"monospace"}}>{((p)*100).toFixed(0)}%</span>
                   </div>
                   <div style={{background:"#0a0a18",borderRadius:3,height:4,overflow:"hidden"}}>
                     <div style={{background:isBest?"#FFD700":col,height:"100%",width:`${(p as number)*100}%`}}/>
@@ -888,7 +881,7 @@ function TabAnalisiAvanzata() {
           <div style={{color:"#22d3ee",fontWeight:700,fontSize:13,marginBottom:10}}>② Analisi Ciclica — Top 10 numeri "in fase"</div>
           <div style={{color:C.dim,fontSize:10,marginBottom:10}}>Numeri che superano il loro ciclo medio storico (fase {'>'} 1.5x = molto in ritardo rispetto al proprio pattern)</div>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {computed.cycles.slice(0,10).map((c:any,i:number)=>{
+            {computed.cycles.slice(0,10).map((c,i)=>{
               const pct=Math.min(c.phase/3*100,100);
               const col=c.phase>2?C.red:c.phase>1.5?C.orange:C.teal;
               return(
@@ -913,7 +906,7 @@ function TabAnalisiAvanzata() {
         <div style={{background:C.card,border:"1px solid #22d3ee33",borderRadius:12,padding:14,marginBottom:14}}>
           <div style={{color:"#22d3ee",fontWeight:700,fontSize:13,marginBottom:10}}>③ K-Means Clustering — Pattern dominante (ultime 30 est.)</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
-            {computed.clusters.counts.map((cnt:number,i:number)=>{
+            {computed.clusters.counts.map((cnt,i)=>{
               const isDom=i===computed.clusters.dominant;
               const DC=["#E8B84B","#F07030","#C94040","#8A5CC4"];
               return(
@@ -988,7 +981,7 @@ function TabAnalisiAvanzata() {
             Ciclo 30% · Bayesiano 25% · Ritardo 25% · Freq.deficit 20%
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:6}}>
-            {computed.advScores.slice(0,20).map((s:any,i:number)=>{
+            {computed.advScores.slice(0,20).map((s,i)=>{
               const col=i<5?"#FFD700":i<10?C.orange:C.teal;
               return(
                 <div key={s.num} style={{background:"#080816",border:`1px solid ${col}33`,borderRadius:8,padding:"8px 10px"}}>
