@@ -2654,7 +2654,7 @@ function TabBiglietti(){
       const dbTickets=data.map(r=>({
         id:r.id,nums:r.nums,superstar:r.bonus?r.bonus[0]||null:null,
         date:r.data_gioco||"",concorso:r.concorso||0,
-        strategy:r.strategy||"",sum:r.somma||0,fromDb:true,
+        strategy:r.strategy||"",sum:r.somma||0,fromDb:true,giocato:r.giocato||false,
       }));
       // Merge con localStorage (biglietti locali non ancora su DB)
       const local=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");
@@ -2670,6 +2670,10 @@ function TabBiglietti(){
 
   useEffect(()=>{loadTickets();},[]);
 
+  const toggleGiocato=async(id,current)=>{
+    try{await supabase.from("tickets").update({giocato:!current}).eq("id",id);}catch{}
+    setTickets(prev=>prev.map(t=>t.id===id?{...t,giocato:!current}:t));
+  };
   const remove=async(id)=>{
     try{await supabase.from("tickets").delete().eq("id",id);}catch{}
     const local=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");
@@ -2727,6 +2731,7 @@ function TabBiglietti(){
                     {ticket.date} · dopo #{ticket.concorso||"?"} · Σ={ticket.sum||sm(ticket.nums)}
                     {ticket.strategy&&<span style={{marginLeft:6,background:`${C.purple}22`,color:C.purple,borderRadius:4,padding:"1px 5px",fontSize:9}}>{ticket.strategy}</span>}
                     {ticket.fromDb&&<span style={{marginLeft:4,color:C.teal,fontSize:8}}>☁️</span>}
+                    <button onClick={e=>{e.stopPropagation();toggleGiocato(ticket.id,ticket.giocato);}} style={{marginLeft:6,background:ticket.giocato?"#4A9E5C22":"#1a1a2e",color:ticket.giocato?C.green:C.dim,border:`1px solid ${ticket.giocato?C.green:C.border}`,borderRadius:6,padding:"1px 7px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{ticket.giocato?"✅ Giocato":"📋 Non giocato"}</button>
                   </div>
                   {results.length>0?(
                     <div style={{color:bestPts>=2?bestCol:C.dim,fontWeight:700,fontSize:12}}>
@@ -2800,8 +2805,9 @@ function TabBiglietti(){
   const stratColors={"tattico":"#FF6B35","suggeritore":"#a78bfa","unificato":"#f59e0b","predittivo":"#e879f9","auto":ACCENT};
   const stratIcons={"tattico":"⚡","suggeritore":"🔮","unificato":"⭐","predittivo":"🔬","auto":"🤖"};
   const ticketsWithPts=tickets.map(ticket=>{const fromN=ticket.concorso||0;const draws=allDraws.filter(d=>(d.n||0)>fromN);const maxPts=draws.length>0?Math.max(...draws.map(d=>d.nums.filter(n=>ticket.nums.includes(n)).length)):0;return {...ticket,maxPts,hasResult:draws.length>0};});
+  const calcStats=(group)=>{if(group.length===0)return null;const avgPts=group.reduce((a,t)=>a+t.maxPts,0)/group.length;const best=Math.max(...group.map(t=>t.maxPts));const with2plus=group.filter(t=>t.maxPts>=2).length;const with3plus=group.filter(t=>t.maxPts>=3).length;const score=Math.round((avgPts/6)*40+(with2plus/group.length)*40+(best/6)*20);return{count:group.length,avgPts:avgPts.toFixed(2),best,with2plus,with3plus,score};};
   const stratStats={};
-  strategies.forEach(s=>{const group=ticketsWithPts.filter(t=>(t.strategy||"auto")===s&&t.hasResult);if(group.length===0)return;const avgPts=group.reduce((a,t)=>a+t.maxPts,0)/group.length;const best=Math.max(...group.map(t=>t.maxPts));const with2plus=group.filter(t=>t.maxPts>=2).length;const with3plus=group.filter(t=>t.maxPts>=3).length;const score=Math.round((avgPts/6)*40+(with2plus/group.length)*40+(best/6)*20);stratStats[s]={count:group.length,avgPts:avgPts.toFixed(2),best,with2plus,with3plus,score};});
+  strategies.forEach(s=>{const all=ticketsWithPts.filter(t=>(t.strategy||"auto")===s&&t.hasResult);const giocati=all.filter(t=>t.giocato);const nonGiocati=all.filter(t=>!t.giocato);if(all.length===0)return;stratStats[s]={...calcStats(all),giocati:calcStats(giocati),nonGiocati:calcStats(nonGiocati)};});
   const sorted=Object.entries(stratStats).sort((a,b)=>b[1].score-a[1].score);
   if(sorted.length===0)return null;
   const maxScore=sorted[0][1].score||1;
@@ -2815,8 +2821,17 @@ function TabBiglietti(){
           <div style={{background:`${col}22`,border:`2px solid ${col}`,borderRadius:8,padding:"4px 12px",textAlign:"center"}}><div style={{color:col,fontSize:18,fontWeight:900,fontFamily:"monospace"}}>{st.score}</div><div style={{color:col,fontSize:8}}>score</div></div>
         </div>
         <div style={{background:"#0a0a18",borderRadius:4,height:8,overflow:"hidden",marginBottom:10}}><div style={{background:`linear-gradient(90deg,${col},${col}88)`,height:"100%",width:`${barW}%`}}/></div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(80px,1fr))",gap:6}}>
-          {[{l:"Biglietti",v:st.count,c:C.dim},{l:"Media punti",v:st.avgPts,c:col},{l:"Miglior risultato",v:`${st.best} pt`,c:st.best>=3?C.orange:st.best>=2?C.teal:C.dim},{l:"Con 2+ punti",v:`${st.with2plus}/${st.count}`,c:st.with2plus>0?C.green:C.dim},{l:"Con 3+ punti",v:`${st.with3plus}/${st.count}`,c:st.with3plus>0?C.orange:C.dim}].map(x=>(<div key={x.l} style={{background:"#0a0a18",borderRadius:6,padding:"6px 8px",textAlign:"center"}}><div style={{color:C.dim,fontSize:8,marginBottom:2}}>{x.l}</div><div style={{color:x.c,fontFamily:"monospace",fontSize:12,fontWeight:700}}>{x.v}</div></div>))}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:4}}>
+          {[{label:"✅ Giocati",data:st.giocati,col:C.green},{label:"📋 Non giocati",data:st.nonGiocati,col:C.dim}].map(({label,data,col:dc})=>(
+            <div key={label} style={{background:"#0a0a18",borderRadius:8,padding:"8px 10px"}}>
+              <div style={{color:dc,fontSize:10,fontWeight:700,marginBottom:6}}>{label}</div>
+              {data?(<>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+                  {[{l:"Biglietti",v:data.count},{l:"Media pt",v:data.avgPts},{l:"Miglior",v:`${data.best}pt`},{l:"Con 2+",v:`${data.with2plus}/${data.count}`}].map(x=>(<div key={x.l} style={{background:"#050510",borderRadius:4,padding:"4px 6px",textAlign:"center"}}><div style={{color:C.dim,fontSize:7}}>{x.l}</div><div style={{color:dc,fontFamily:"monospace",fontSize:11,fontWeight:700}}>{x.v}</div></div>))}
+                </div>
+              </>):(<div style={{color:C.dim,fontSize:10,textAlign:"center",padding:"8px 0"}}>—</div>)}
+            </div>
+          ))}
         </div>
       </div>);})}
     </div>
