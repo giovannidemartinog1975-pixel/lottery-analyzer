@@ -579,7 +579,7 @@ function SSAffinitaPanel({allDraws,ticketSum,sigmaRef,currentSS,selSS,setSelSS})
 // ═══════════════════════════════════════════════════════════════
 
 // ─── CATENE DI MARKOV ────────────────────────────────────────
-function getMarkovState(nums: number[]): string {
+function getMarkovState(nums) {
   const s = nums.reduce((a,b)=>a+b,0);
   const e = nums.filter(n=>n%2===0).length;
   const cat = s < 230 ? 'L' : s > 320 ? 'H' : 'M';
@@ -609,7 +609,7 @@ function computeMarkov(draws: any[]) {
 }
 
 // ─── ANALISI CICLICA ─────────────────────────────────────────
-function analyzeCycles(draws: any[]) {
+function analyzeCycles(draws) {
   const N=draws.length;
   return Array.from({length:POOL},(_,i)=>{
     const num=i+1;
@@ -628,7 +628,7 @@ function analyzeCycles(draws: any[]) {
 }
 
 // ─── K-MEANS CLUSTERING ──────────────────────────────────────
-function getDrawFeatures(nums: number[], muReale: number, sigmaReale: number): number[] {
+function getDrawFeatures(nums, muReale, sigmaReale) {
   const s=nums.reduce((a,b)=>a+b,0);
   const e=nums.filter(n=>n%2===0).length;
   const decades=[0,0,0,0,0,0,0,0,0];
@@ -645,7 +645,7 @@ function getDrawFeatures(nums: number[], muReale: number, sigmaReale: number): n
   ];
 }
 
-function kmeansCluster(features: number[][], k=4, iterations=15) {
+function kmeansCluster(features, k=4, iterations=15) {
   let centroids=features.slice(0,k).map(d=>[...d]);
   let assignments=new Array(features.length).fill(0);
   for(let iter=0;iter<iterations;iter++){
@@ -666,7 +666,7 @@ function kmeansCluster(features: number[][], k=4, iterations=15) {
   return {assignments,centroids};
 }
 
-function computeClusters(draws: any[], muReale: number, sigmaReale: number) {
+function computeClusters(draws, muReale, sigmaReale) {
   const features=draws.map(d=>getDrawFeatures(d.nums,muReale,sigmaReale));
   const {assignments,centroids}=kmeansCluster(features,4);
   const recent=assignments.slice(-30);
@@ -685,7 +685,7 @@ function computeClusters(draws: any[], muReale: number, sigmaReale: number) {
 }
 
 // ─── ENTROPIA LOCALE ─────────────────────────────────────────
-function localEntropy(window: any[]): number {
+function localEntropy(window) {
   const freq=new Array(POOL+1).fill(0);
   window.forEach(d=>d.nums.forEach((n:number)=>freq[n]++));
   const total=window.length*PICK;
@@ -697,7 +697,7 @@ function localEntropy(window: any[]): number {
   return H/Math.log2(POOL);
 }
 
-function computeEntropyTimeline(draws: any[], windowSize=50) {
+function computeEntropyTimeline(draws, windowSize=50) {
   const timeline=[];
   for(let i=windowSize;i<=draws.length;i++){
     timeline.push({
@@ -713,7 +713,7 @@ function computeEntropyTimeline(draws: any[], windowSize=50) {
 }
 
 // ─── SCORE BAYESIANO ─────────────────────────────────────────
-function bayesianScore(num: number, draws: any[], windowSize=150): number {
+function bayesianScore(num, draws, windowSize=150) {
   const recent=draws.slice(-windowSize);
   const freq=recent.filter(d=>d.nums.includes(num)).length;
   const alpha=freq+1;
@@ -724,7 +724,7 @@ function bayesianScore(num: number, draws: any[], windowSize=150): number {
 }
 
 // ─── SCORE UNIFICATO AVANZATO ────────────────────────────────
-function computeAdvancedScores(draws: any[], muReale: number, sigmaReale: number) {
+function computeAdvancedScores(draws, muReale, sigmaReale) {
   const N=draws.length;
   const cycles=analyzeCycles(draws);
   const clusterData=computeClusters(draws,muReale,sigmaReale);
@@ -768,15 +768,7 @@ function computeAdvancedScores(draws: any[], muReale: number, sigmaReale: number
 }
 
 // ─── AGGIORNA calcQualityScore con score avanzato ─────────────
-function calcQualityScoreAdvanced(
-  nums: number[],
-  allDraws: any[],
-  freq: number[],
-  sigmaReale: number,
-  muReale: number,
-  advScores: ReturnType<typeof computeAdvancedScores>
-): number {
-  const s=nums.reduce((a,b)=>a+b,0);
+function calcQualityScoreAdvanced(nums, allDraws, freq, sigmaReale, muReale, advScores) {  const s=nums.reduce((a,b)=>a+b,0);
   const zS=Math.abs((s-muReale)/Math.max(sigmaReale,1));
 
   // 1. Score somma (25pt)
