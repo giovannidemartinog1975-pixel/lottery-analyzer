@@ -1453,44 +1453,43 @@ function TabGeneratore(){
           <button key={m.id} onClick={()=>setMode(m.id)} style={{background:mode===m.id?`${ACCENT}22`:"transparent",color:mode===m.id?ACCENT:C.dim,border:`1px solid ${mode===m.id?ACCENT:C.border}`,borderRadius:18,padding:"6px 14px",fontSize:11,fontWeight:mode===m.id?700:400,cursor:"pointer",fontFamily:"inherit"}}>{m.l}</button>
         ))}
       </div>
-      {mode==="auto"&&(<div>
-        <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10,alignItems:"center"}}>
-          {[{id:"cold",l:"❄️",c:C.teal},{id:"unpop",l:"👥",c:C.purple},{id:"balanced",l:"⚖️",c:ACCENT}].map(s=>(<button key={s.id} onClick={()=>setStrategy(s.id)} style={{background:strategy===s.id?`${s.c}22`:"transparent",color:strategy===s.id?s.c:C.dim,border:`1px solid ${strategy===s.id?s.c:C.border}`,borderRadius:14,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{s.l}</button>))}
-          <div style={{display:"flex",gap:4,alignItems:"center"}}>
-            <span style={{color:C.dim,fontSize:10}}>μ:</span>
-            <input type="range" min={100} max={450} value={muCustom} onChange={e=>setMuCustom(+e.target.value)} style={{width:70,accentColor:ACCENT}}/>
-            <input type="number" min={100} max={450} value={muCustom} onChange={e=>setMuCustom(Math.max(100,Math.min(450,+e.target.value)))} style={{width:60,background:"#0a0a1c",color:ACCENT,border:`1px solid ${ACCENT}55`,borderRadius:6,padding:"3px 6px",fontSize:12,fontFamily:"monospace",outline:"none"}}/>
+      {mode==="auto"&&(<><div>
+        <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10, alignItems: "center" }}>
+          {[{ id: "cold", l: "❄️", c: C.teal }, { id: "unpop", l: "👥", c: C.purple }, { id: "balanced", l: "⚖️", c: ACCENT }].map(s => (<button key={s.id} onClick={() => setStrategy(s.id)} style={{ background: strategy === s.id ? `${s.c}22` : "transparent", color: strategy === s.id ? s.c : C.dim, border: `1px solid ${strategy === s.id ? s.c : C.border}`, borderRadius: 14, padding: "5px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>{s.l}</button>))}
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <span style={{ color: C.dim, fontSize: 10 }}>μ:</span>
+            <input type="range" min={100} max={450} value={muCustom} onChange={e => setMuCustom(+e.target.value)} style={{ width: 70, accentColor: ACCENT }} />
+            <input type="number" min={100} max={450} value={muCustom} onChange={e => setMuCustom(Math.max(100, Math.min(450, +e.target.value)))} style={{ width: 60, background: "#0a0a1c", color: ACCENT, border: `1px solid ${ACCENT}55`, borderRadius: 6, padding: "3px 6px", fontSize: 12, fontFamily: "monospace", outline: "none" }} />
           </div>
-          <div style={{width:"100%",marginTop:6}}>
-            <div style={{color:C.dim,fontSize:10,marginBottom:5}}>⚙️ BANDA σ:</div>
-            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-              {[0.5,1.0,1.5,2.0,2.5].map(k=>{const se=sigmaMode==="reale"?sigmaReale:SIGMA_TEO;const lo=Math.round(muCustom-k*se);const hi=Math.round(muCustom+k*se);const inB=series.filter(d=>d.sum>=lo&&d.sum<=hi).length;const pct=(inB/series.length*100).toFixed(0);const isActive=kBand===k;return(
-                <button key={k} onClick={()=>setKBand(k)} style={{flex:1,minWidth:70,background:isActive?`linear-gradient(135deg,${ACCENT}33,${ACCENT}11)`:"#080816",color:isActive?ACCENT:C.dim,border:`2px solid ${isActive?ACCENT:C.border}`,borderRadius:10,padding:"8px 4px",cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
-                  <div style={{fontSize:13,fontWeight:900,fontFamily:"monospace"}}>±{k}σ</div>
-                  <div style={{fontSize:10,fontFamily:"monospace",color:isActive?C.teal:C.dim,marginTop:2}}>{lo}–{hi}</div>
-                  <div style={{fontSize:9,color:isActive?C.green:C.dim,marginTop:1}}>{pct}% storiche</div>
-                </button>
-              );})}
+          <div style={{ width: "100%", marginTop: 6 }}>
+            <div style={{ color: C.dim, fontSize: 10, marginBottom: 5 }}>⚙️ BANDA σ:</div>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+              {[0.5, 1.0, 1.5, 2.0, 2.5].map(k => {
+                const se = sigmaMode === "reale" ? sigmaReale : SIGMA_TEO; const lo = Math.round(muCustom - k * se); const hi = Math.round(muCustom + k * se); const inB = series.filter(d => d.sum >= lo && d.sum <= hi).length; const pct = (inB / series.length * 100).toFixed(0); const isActive = kBand === k; return (
+                  <button key={k} onClick={() => setKBand(k)} style={{ flex: 1, minWidth: 70, background: isActive ? `linear-gradient(135deg,${ACCENT}33,${ACCENT}11)` : "#080816", color: isActive ? ACCENT : C.dim, border: `2px solid ${isActive ? ACCENT : C.border}`, borderRadius: 10, padding: "8px 4px", cursor: "pointer", fontFamily: "inherit", textAlign: "center" }}>
+                    <div style={{ fontSize: 13, fontWeight: 900, fontFamily: "monospace" }}>±{k}σ</div>
+                    <div style={{ fontSize: 10, fontFamily: "monospace", color: isActive ? C.teal : C.dim, marginTop: 2 }}>{lo}–{hi}</div>
+                    <div style={{ fontSize: 9, color: isActive ? C.green : C.dim, marginTop: 1 }}>{pct}% storiche</div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
-        <button onClick={genera} style={{width:"100%",padding:"13px",background:`linear-gradient(135deg,${ACCENT},${C.teal})`,color:"#fff",border:"none",borderRadius:10,fontSize:16,fontWeight:900,cursor:"pointer",fontFamily:"Georgia,serif",marginBottom:12}}>🎲 Genera Sestina + SuperStar</button>
-        {ticket&&(<div style={{background:"#080816",border:`1px solid ${ACCENT}55`,borderRadius:12,padding:14}}>
-          <div style={{display:"flex",justifyContent:"center",gap:8,flexWrap:"wrap",marginBottom:12}}>
-            {ticket.nums.map(n=>{const s=scored.find(x=>x.num===n);const col=s?.isHot?C.orange:s?.isCold?C.teal:ACCENT;return <Ball key={n} num={n} color={col} size={46} glow/>;})}<div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:C.dim,fontSize:14}}>│</span>{superstar?<Ball num={superstar} size={46} gold glow/>:null}<span style={{color:"#FFD700",fontSize:9}}>SS</span></div>
+        <button onClick={genera} style={{ width: "100%", padding: "13px", background: `linear-gradient(135deg,${ACCENT},${C.teal})`, color: "#fff", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 900, cursor: "pointer", fontFamily: "Georgia,serif", marginBottom: 12 }}>🎲 Genera Sestina + SuperStar</button>
+        {ticket && (<div style={{ background: "#080816", border: `1px solid ${ACCENT}55`, borderRadius: 12, padding: 14 }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            {ticket.nums.map(n => { const s = scored.find(x => x.num === n); const col = s?.isHot ? C.orange : s?.isCold ? C.teal : ACCENT; return <Ball key={n} num={n} color={col} size={46} glow />; })}<div style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: C.dim, fontSize: 14 }}>│</span>{superstar ? <Ball num={superstar} size={46} gold glow /> : null}<span style={{ color: "#FFD700", fontSize: 9 }}>SS</span></div>
           </div>
-          <SSAffinitaPanel allDraws={allDraws} ticketSum={ticket.sum} sigmaRef={sigmaEff} currentSS={superstar} selSS={selSSBonus[0]||null} setSelSS={n=>setSelSSBonus([n])}/>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10}}>
-            {[{l:"Σ",v:ticket.sum,c:ACCENT},{l:"Δ da μ",v:(ticket.sum>muCustom?"+":"")+(ticket.sum-muCustom),c:C.teal},{l:"Δ da 277.5",v:(ticket.sum>MU_TEO?"+":"")+(ticket.sum-MU_TEO).toFixed(1),c:ticket.sum>MU_TEO?C.orange:C.teal},{l:"z",v:zOf(ticket.sum,MU_TEO,SIGMA_TEO).toFixed(2),c:Math.abs(zOf(ticket.sum,MU_TEO,SIGMA_TEO))<1?C.green:C.orange}].map(x=>(<div key={x.l} style={{background:"#0a0a18",borderRadius:6,padding:8,textAlign:"center"}}><div style={{color:C.dim,fontSize:9}}>{x.l}</div><div style={{color:x.c,fontSize:15,fontWeight:900,fontFamily:"monospace"}}>{x.v}</div></div>))}
+          <SSAffinitaPanel allDraws={allDraws} ticketSum={ticket.sum} sigmaRef={sigmaEff} currentSS={superstar} selSS={selSSBonus[0] || null} setSelSS={n => setSelSSBonus([n])} />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 10 }}>
+            {[{ l: "Σ", v: ticket.sum, c: ACCENT }, { l: "Δ da μ", v: (ticket.sum > muCustom ? "+" : "") + (ticket.sum - muCustom), c: C.teal }, { l: "Δ da 277.5", v: (ticket.sum > MU_TEO ? "+" : "") + (ticket.sum - MU_TEO).toFixed(1), c: ticket.sum > MU_TEO ? C.orange : C.teal }, { l: "z", v: zOf(ticket.sum, MU_TEO, SIGMA_TEO).toFixed(2), c: Math.abs(zOf(ticket.sum, MU_TEO, SIGMA_TEO)) < 1 ? C.green : C.orange }].map(x => (<div key={x.l} style={{ background: "#0a0a18", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: C.dim, fontSize: 9 }}>{x.l}</div><div style={{ color: x.c, fontSize: 15, fontWeight: 900, fontFamily: "monospace" }}>{x.v}</div></div>))}
           </div>
-          <button onClick={async()=>{const t={id:Date.now(),nums:ticket.nums,superstar:selSSBonus[0]||superstar,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy,sum:ticket.sum};await salvaTicketSE(t);alert(`✅ Sestina salvata!\n${ticket.nums.join("-")} | SS:${selSSBonus[0]||superstar||"—"}`);}} style={{width:"100%",padding:"10px",background:`${C.purple}22`,color:C.purple,border:`2px solid ${C.purple}`,borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva → 🎫 Biglietti</button>
-      </div>)}
-      {mode==="manual"&&(<div>
-        <div style={{color:C.dim,fontSize:11,marginBottom:10}}>Inserisci {PICK} numeri (1–90).</div>
-        <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginBottom:10}}>
-          {manualInputs.map((v,i)=>{const num=parseInt(v)||0,valid=num>=1&&num<=POOL;const isDup=valid&&manualInputs.filter(x=>parseInt(x)===num).length>1;const s=scored.find(x=>x.num===num);const col=isDup?C.red:s?.isHot?C.orange:s?.isCold?C.teal:ACCENT;return(<div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><Ball num={valid&&!isDup?num:"?"} color={valid&&!isDup?col:"#333"} size={38}/><input type="number" min={1} max={POOL} value={v} onChange={e=>{const next=[...manualInputs];next[i]=e.target.value;setManualInputs(next);}} style={{width:48,textAlign:"center",background:"#080816",color:col,border:`1.5px solid ${isDup?C.red:valid?`${col}55`:C.border}`,borderRadius:7,padding:"4px 2px",fontSize:13,fontFamily:"monospace",outline:"none"}}/></div>);})}
-        </div>
-        <div style={{textAlign:"center",color:C.dim,fontSize:10,marginBottom:10}}>Σ parziale: <strong style={{color:ACCENT,fontSize:15}}>{sm(manualInputs.map(v=>parseInt(v)||0).filter(n=>n>=1&&n<=POOL))||0}</strong></div>
+          <button onClick={async () => { const t = { id: Date.now(), nums: ticket.nums, superstar: selSSBonus[0] || superstar, date: new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" }), concorso: allDraws[allDraws.length - 1]?.n || 0, strategy, sum: ticket.sum }; await salvaTicketSE(t); alert(`✅ Sestina salvata!\n${ticket.nums.join("-")} | SS:${selSSBonus[0] || superstar || "—"}`); } } style={{ width: "100%", padding: "10px", background: `${C.purple}22`, color: C.purple, border: `2px solid ${C.purple}`, borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>💾 Salva → 🎫 Biglietti</button>
+        {mode==="manual"&&(<div>
+          <div style={{color:C.dim,fontSize:11,marginBottom:10}}>Inserisci {PICK} numeri (1–90).</div>
+          {manualInputs.map((v, i) => { const num = parseInt(v) || 0, valid = num >= 1 && num <= POOL; const isDup = valid && manualInputs.filter(x => parseInt(x) === num).length > 1; const s = scored.find(x => x.num === num); const col = isDup ? C.red : s?.isHot ? C.orange : s?.isCold ? C.teal : ACCENT; return (<div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><Ball num={valid && !isDup ? num : "?"} color={valid && !isDup ? col : "#333"} size={38} /><input type="number" min={1} max={POOL} value={v} onChange={e => { const next = [...manualInputs]; next[i] = e.target.value; setManualInputs(next); } } style={{ width: 48, textAlign: "center", background: "#080816", color: col, border: `1.5px solid ${isDup ? C.red : valid ? `${col}55` : C.border}`, borderRadius: 7, padding: "4px 2px", fontSize: 13, fontFamily: "monospace", outline: "none" }} /></div>); })}
+        </div><div style={{ textAlign: "center", color: C.dim, fontSize: 10, marginBottom: 10 }}>Σ parziale: <strong style={{ color: ACCENT, fontSize: 15 }}>{sm(manualInputs.map(v => parseInt(v) || 0).filter(n => n >= 1 && n <= POOL)) || 0}</strong></div></>
       </div>)}
       {mode==="tattico"&&(<div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:12}}>
