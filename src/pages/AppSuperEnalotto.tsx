@@ -2654,7 +2654,7 @@ function TabBiglietti(){
       const dbTickets=data.map(r=>({
         id:r.id,nums:r.nums,superstar:r.bonus?r.bonus[0]||null:null,
         date:r.data_gioco||"",concorso:r.concorso||0,
-        strategy:r.strategy||"",sum:r.somma||0,fromDb:true,giocato:r.giocato||false,
+        strategy:r.strategy||"",sum:r.somma||0,fromDb:true,giocato:r.giocato||false,inSistema:r.in_sistema||false,
       }));
       // Merge con localStorage (biglietti locali non ancora su DB)
       const local=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");
@@ -2673,6 +2673,10 @@ function TabBiglietti(){
   const toggleGiocato=async(id,current)=>{
     try{await supabase.from("tickets").update({giocato:!current}).eq("id",id);}catch{}
     setTickets(prev=>prev.map(t=>t.id===id?{...t,giocato:!current}:t));
+  };
+  const toggleInSistema=async(id,current)=>{
+    try{await supabase.from("tickets").update({in_sistema:!current}).eq("id",id);}catch{}
+    setTickets(prev=>prev.map(t=>t.id===id?{...t,inSistema:!current}:t));
   };
   const remove=async(id)=>{
     try{await supabase.from("tickets").delete().eq("id",id);}catch{}
@@ -2732,6 +2736,7 @@ function TabBiglietti(){
                     {ticket.strategy&&<span style={{marginLeft:6,background:`${C.purple}22`,color:C.purple,borderRadius:4,padding:"1px 5px",fontSize:9}}>{ticket.strategy}</span>}
                     {ticket.fromDb&&<span style={{marginLeft:4,color:C.teal,fontSize:8}}>☁️</span>}
                     <button onClick={e=>{e.stopPropagation();toggleGiocato(ticket.id,ticket.giocato);}} style={{marginLeft:6,background:ticket.giocato?"#4A9E5C22":"#1a1a2e",color:ticket.giocato?C.green:C.dim,border:`1px solid ${ticket.giocato?C.green:C.border}`,borderRadius:6,padding:"1px 7px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{ticket.giocato?"✅ Giocato":"📋 Non giocato"}</button>
+<button onClick={e=>{e.stopPropagation();toggleInSistema(ticket.id,ticket.inSistema);}} style={{marginLeft:4,background:ticket.inSistema?"#4A8FD422":"#1a1a2e",color:ticket.inSistema?"#4A8FD4":C.dim,border:`1px solid ${ticket.inSistema?"#4A8FD4":C.border}`,borderRadius:6,padding:"1px 7px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{ticket.inSistema?"🎰 In Sistema":"➕ Sistema"}</button>
                   </div>
                   {results.length>0?(
                     <div style={{color:bestPts>=2?bestCol:C.dim,fontWeight:700,fontSize:12}}>
@@ -2800,9 +2805,65 @@ function TabBiglietti(){
           );
         })}
       </div>
+      {tickets.filter(t=>t.inSistema).length>=2&&(()=>{
+        const candidati=tickets.filter(t=>t.inSistema);
+        const [maxSestine,setMaxSestine]=React.useState(5);
+        const series=buildSeries(allDraws);
+        const sums=series.map(d=>d.sum);
+        const muReale=avg(sums),sigmaReale=std(sums);
+        const advScores=computeAdvancedScores(allDraws,muReale,sigmaReale);
+        const scored=candidati.map(t=>{
+          const advMean=t.nums.reduce((acc,n)=>{const a=advScores.find(x=>x.num===n);return acc+(a?a.unified:0);},0)/t.nums.length;
+          return {...t,advScore:advMean};
+        });
+        function diversity(a,b){return 1-a.nums.filter(n=>b.nums.includes(n)).length/PICK;}
+        function selectOptimal(pool,k){
+          const selected=[];const remaining=[...pool].sort((a,b)=>b.advScore-a.advScore);
+          selected.push(remaining.shift());
+          while(selected.length<k&&remaining.length>0){
+            let bestIdx=0,bestScore=-Infinity;
+            remaining.forEach((c,i)=>{const divScore=selected.reduce((a,s)=>a+diversity(c,s),0)/selected.length;const combined=c.advScore*0.5+divScore*50*0.5;if(combined>bestScore){bestScore=combined;bestIdx=i;}});
+            selected.push(remaining.splice(bestIdx,1)[0]);
+          }
+          return selected;
+        }
+        const optimal=selectOptimal(scored,Math.min(maxSestine,candidati.length));
+        const totalNums=[...new Set(optimal.flatMap(t=>t.nums))];
+        return(<div style={{marginTop:24,background:"#080816",border:"2px solid #4A8FD4",borderRadius:12,padding:16,marginBottom:16}}>
+          <div style={{color:"#4A8FD4",fontWeight:700,fontSize:14,marginBottom:4,fontFamily:"Georgia,serif"}}>🎰 Sistema Ottimale</div>
+          <div style={{color:C.dim,fontSize:10,marginBottom:12}}>{candidati.length} biglietti candidati · {totalNums.length} numeri distinti coperti</div>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+            <span style={{color:C.dim,fontSize:11}}>Max sestine:</span>
+            {[2,3,4,5,6,7,8,10].map(n=>(<button key={n} onClick={()=>setMaxSestine(n)} style={{background:maxSestine===n?"#4A8FD422":"transparent",color:maxSestine===n?"#4A8FD4":C.dim,border:`1px solid ${maxSestine===n?"#4A8FD4":C.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>))}
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+            {optimal.map((t,i)=>{
+              const divMedia=optimal.filter((_,j)=>j!==i).reduce((a,o)=>a+diversity(t,o),0)/Math.max(optimal.length-1,1);
+              return(<div key={t.id} style={{background:"#0a0a18",border:"1px solid #4A8FD444",borderRadius:10,padding:"10px 12px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,flexWrap:"wrap"}}>
+                  <span style={{color:"#4A8FD4",fontFamily:"monospace",fontSize:11}}>#{i+1}</span>
+                  {t.nums.map(n=><Ball key={n} num={n} color="#4A8FD4" size={32} glow/>)}
+                  {typeof t.superstar==="number"&&<><span style={{color:C.dim}}>│</span><Ball num={t.superstar} size={30} gold/><span style={{color:"#FFD700",fontSize:8}}>SS</span></>}
+                </div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  <span style={{background:"#4A8FD422",color:"#4A8FD4",borderRadius:4,padding:"2px 8px",fontSize:9,fontFamily:"monospace"}}>Σ {t.sum}</span>
+                  <span style={{background:C.purple+"22",color:C.purple,borderRadius:4,padding:"2px 8px",fontSize:9}}>{t.strategy}</span>
+                  <span style={{background:C.teal+"22",color:C.teal,borderRadius:4,padding:"2px 8px",fontSize:9}}>score {t.advScore.toFixed(0)}</span>
+                  <span style={{background:C.orange+"22",color:C.orange,borderRadius:4,padding:"2px 8px",fontSize:9}}>div {(divMedia*100).toFixed(0)}%</span>
+                </div>
+              </div>);
+            })}
+          </div>
+          <div style={{background:"#0a0a18",borderRadius:8,padding:10,marginBottom:10}}>
+            <div style={{color:"#4A8FD4",fontSize:10,fontWeight:700,marginBottom:6}}>📊 Numeri coperti ({totalNums.length}/90)</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:3}}>{totalNums.sort((a,b)=>a-b).map(n=><Ball key={n} num={n} color="#4A8FD4" size={24}/>)}</div>
+          </div>
+          <button onClick={async()=>{for(const t of optimal){await supabase.from("tickets").update({giocato:true}).eq("id",t.id);}setTickets(prev=>prev.map(t=>optimal.find(o=>o.id===t.id)?{...t,giocato:true}:t));alert(`✅ ${optimal.length} sestine marcate come Giocato!`);}} style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#4A8FD4,#2BA89A)",color:"#fff",border:"none",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✅ Segna tutte come Giocato</button>
+        </div>);
+      })()}
       {tickets.length>0&&(()=>{
-  const strategies=["tattico","suggeritore","unificato","predittivo","auto"];
-  const stratColors={"tattico":"#FF6B35","suggeritore":"#a78bfa","unificato":"#f59e0b","predittivo":"#e879f9","auto":ACCENT};
+        const strategies=["tattico","suggeritore","unificato","predittivo","auto"];
+        const stratColors={"tattico":"#FF6B35","suggeritore":"#a78bfa","unificato":"#f59e0b","predittivo":"#e879f9","auto":ACCENT};
   const stratIcons={"tattico":"⚡","suggeritore":"🔮","unificato":"⭐","predittivo":"🔬","auto":"🤖"};
   const ticketsWithPts=tickets.map(ticket=>{const fromN=ticket.concorso||0;const draws=allDraws.filter(d=>(d.n||0)>fromN);const maxPts=draws.length>0?Math.max(...draws.map(d=>d.nums.filter(n=>ticket.nums.includes(n)).length)):0;return {...ticket,maxPts,hasResult:draws.length>0};});
   const calcStats=(group)=>{if(group.length===0)return null;const avgPts=group.reduce((a,t)=>a+t.maxPts,0)/group.length;const best=Math.max(...group.map(t=>t.maxPts));const with2plus=group.filter(t=>t.maxPts>=2).length;const with3plus=group.filter(t=>t.maxPts>=3).length;const score=Math.round((avgPts/6)*40+(with2plus/group.length)*40+(best/6)*20);return{count:group.length,avgPts:avgPts.toFixed(2),best,with2plus,with3plus,score};};
