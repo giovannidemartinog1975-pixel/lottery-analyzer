@@ -677,7 +677,7 @@ function TabBiglietti(){
             </div>);})}
           </div>
           <div style={{background:"#0a0a18",borderRadius:8,padding:10,marginBottom:10}}>
-            <div style={{color:"#4A8FD4",f"suggeritore":"#a78bfa","unificato":"#f59e0b","auto":ACCENT};
+            <div style={{color:"#4A8FD4",fontSize:10,fontWeight:700,marginBottom:6}}>📊 Numeri coperti ({totalNums.length}/50)</div>
         const stratIcons={"tattico":"⚡","suggeritore":"🔮","unificato":"⭐","auto":"🤖"};
         const ticketsWithPts=tickets.map(ticket=>{const fromN=ticket.concorso||0;const draws=allDraws.filter(d=>(d.n||0)>fromN);const maxPts=draws.length>0?Math.max(...draws.map(d=>d.nums.filter(n=>ticket.nums.includes(n)).length)):0;return {...ticket,maxPts,hasResult:draws.length>0};});
         const calcSt=(group)=>{if(group.length===0)return null;const avgPts=group.reduce((a,t)=>a+t.maxPts,0)/group.length;const best=Math.max(...group.map(t=>t.maxPts));const with2plus=group.filter(t=>t.maxPts>=2).length;const with3plus=group.filter(t=>t.maxPts>=3).length;const score=Math.round((avgPts/5)*40+(with2plus/group.length)*40+(best/5)*20);return{count:group.length,avgPts:avgPts.toFixed(2),best,with2plus,with3plus,score};};
