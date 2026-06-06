@@ -580,6 +580,7 @@ function TabBiglietti(){
   const [tickets,setTickets]=useState([]);
   const [loadingTickets,setLoadingTickets]=useState(true);
   const [expanded,setExpanded]=useState(null);const [confirmDel,setConfirmDel]=useState(null);
+  const [maxSestine,setMaxSestine]=useState(2);
   const loadTickets=async()=>{
     setLoadingTickets(true);
     try{
