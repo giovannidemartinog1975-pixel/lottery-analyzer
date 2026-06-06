@@ -585,8 +585,8 @@ function TabBiglietti(){
     try{
       const {data,error}=await supabase.from("tickets").select("*").eq("lotteria","euromillions").order("created_at",{ascending:false});
       if(error)throw error;
-      const dbTickets=data.map(r=>({<button onClick={e=>{e.stopPropagation();toggleGiocato(ticket.id,ticket.giocato);}} style={{marginLeft:6,background:ticket.giocato?"#4A9E5C22":"#1a1a2e",color:ticket.giocato?C.green:C.dim,border:`1px solid ${ticket.giocato?C.green:C.border}`,borderRadius:6,padding:"1px 7px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{ticket.giocato?"✅ Giocato":"📋 Non giocato"}</button>
-<button onClick={e=>{e.stopPropagation();toggleInSistema(ticket.id,ticket.inSistema);}} style={{marginLeft:4,background:ticket.inSistema?"#4A8FD422":"#1a1a2e",color:ticket.inSistema?"#4A8FD4":C.dim,border:`1px solid ${ticket.inSistema?"#4A8FD4":C.border}`,borderRadius:6,padding:"1px 7px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{ticket.inSistema?"🎰 In Sistema":"➕ Sistema"}</button>}));
+      const dbTickets=data.map(r=>({id:r.id,nums:r.nums,stelle:r.bonus||[],date:r.data_gioco||"",concorso:r.concorso||0,strategy:r.strategy||"",sum:r.somma||0,fromDb:true,giocato:r.giocato||false,inSistema:r.in_sistema||false}));
+<button onClick={e=>{e.stopPropagation();toggleInSistema(ticket.id,ticket.inSistema);}} style={{marginLeft:4,background:ticket.inSistema?"#4A8FD422":"#1a1a2e",color:ticket.inSistema?"#4A8FD4":C.dim,border:`1px solid ${ticket.inSistema?"#4A8FD4":C.border}`,borderRadius:6,padding:"1px 7px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{ticket.inSistema?"🎰 In Sistema":"➕ Sistema"}</button>
       const local=JSON.parse(localStorage.getItem(LS_TICKETS_EM)||"[]");
       const dbIds=new Set(dbTickets.map(t=>String(t.id)));
       const localOnly=local.filter(t=>!dbIds.has(String(t.id)));
