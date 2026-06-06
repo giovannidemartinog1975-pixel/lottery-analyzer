@@ -339,7 +339,7 @@ function TabGeneratore(){
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10}}>
             {[{l:"Σ",v:ticket.sum,c:ACCENT},{l:"Δ da μ",v:(ticket.sum>muCustom?"+":"")+(ticket.sum-muCustom),c:C.teal},{l:"Δ da 127.5",v:(ticket.sum>MU_TEO?"+":"")+(ticket.sum-MU_TEO).toFixed(1),c:ticket.sum>MU_TEO?C.orange:C.teal},{l:"z",v:zOf(ticket.sum,MU_TEO,SIGMA_TEO).toFixed(2),c:Math.abs(zOf(ticket.sum,MU_TEO,SIGMA_TEO))<1?C.green:C.orange}].map(x=>(<div key={x.l} style={{background:"#0a0a18",borderRadius:6,padding:8,textAlign:"center"}}><div style={{color:C.dim,fontSize:9}}>{x.l}</div><div style={{color:x.c,fontSize:15,fontWeight:900,fontFamily:"monospace"}}>{x.v}</div></div>))}
           </div>
-          <button onClick={()=>{const t={id:Date.now(),nums:ticket.nums,stelle,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy,sum:ticket.sum};const prev=JSON.parse(localStorage.getItem(LS_TICKETS_EM)||"[]");localStorage.setItem(LS_TICKETS_EM,JSON.stringify([...prev,t]));alert(`✅ Salvata!\n${ticket.nums.join("-")} | Stelle:${stelle?.join("-")||"—"}`);}} style={{width:"100%",padding:"10px",background:`${C.purple}22`,color:C.purple,border:`2px solid ${C.purple}`,borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva → 🎫 Biglietti</button>
+          <button onClick={async()=>{const t={id:Date.now(),nums:ticket.nums,stelle,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy,sum:ticket.sum};await salvaTicketEM(t);alert(`✅ Salvata!\n${ticket.nums.join("-")} | Stelle:${stelle?.join("-")||"—"}`);}} style={{width:"100%",padding:"10px",background:`${C.purple}22`,color:C.purple,border:`2px solid ${C.purple}`,borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva → 🎫 Biglietti</button>
         </div>)}
       </div>)}
       {mode==="tattico"&&(<div>
@@ -444,7 +444,7 @@ function TabGeneratore(){
                     <span style={{color:C.dim,fontSize:11}}>Stelle:</span>
                     {chosen.length?(<>{chosen.sort((a,b)=>a-b).map(n=><Ball key={n} num={n} size={30} gold glow star/>)}<span style={{color:"#FFD700",fontWeight:700,fontSize:13,fontFamily:"monospace"}}>{chosen.sort((a,b)=>a-b).join(" – ")}</span></>):<span style={{color:"#555",fontSize:11}}>Seleziona 2 stelle sopra</span>}
                   </div>
-                  {chosen.length===STELLE_COUNT&&(<button onClick={()=>{const t={id:Date.now()+idx,nums:r.nums,stelle:chosen,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:"tattico",sum:r.sum};const prev=JSON.parse(localStorage.getItem(LS_TICKETS_EM)||"[]");localStorage.setItem(LS_TICKETS_EM,JSON.stringify([...prev,t]));alert(`✅ Linea ${idx+1} salvata!\n${r.nums.join("-")} | Stelle:${chosen.sort((a,b)=>a-b).join("-")}`);}} style={{width:"100%",padding:"8px",marginTop:8,background:`${C.purple}22`,color:C.purple,border:`2px solid ${C.purple}`,borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva</button>)}
+                  {chosen.length===STELLE_COUNT&&(<button onClick={async()=>{const t={id:Date.now()+idx,nums:r.nums,stelle:chosen,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:"tattico",sum:r.sum};await salvaTicketEM(t);alert(`✅ Linea ${idx+1} salvata!\n${r.nums.join("-")} | Stelle:${chosen.sort((a,b)=>a-b).join("-")}`);}} style={{width:"100%",padding:"8px",marginTop:8,background:`${C.purple}22`,color:C.purple,border:`2px solid ${C.purple}`,borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva</button>)}
                 </div>
               );
             })}
@@ -577,16 +577,42 @@ function TabEstrazioni({onUpdate}){
 
 function TabBiglietti(){
   const allDraws=useDraws();
-  const [tickets,setTickets]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS_TICKETS_EM)||"[]");}catch{return [];}});
+  const [tickets,setTickets]=useState([]);
+  const [loadingTickets,setLoadingTickets]=useState(true);
   const [expanded,setExpanded]=useState(null);const [confirmDel,setConfirmDel]=useState(null);
-  useEffect(()=>{try{setTickets(JSON.parse(localStorage.getItem(LS_TICKETS_EM)||"[]"));}catch{}},[allDraws]);
-  const persist=(list)=>{localStorage.setItem(LS_TICKETS_EM,JSON.stringify(list));setTickets(list);};
-  const remove=(id)=>{persist(tickets.filter(t=>t.id!==id));setConfirmDel(null);setExpanded(null);};
+  const loadTickets=async()=>{
+    setLoadingTickets(true);
+    try{
+      const {data,error}=await supabase.from("tickets").select("*").eq("lotteria","euromillions").order("created_at",{ascending:false});
+      if(error)throw error;
+      const dbTickets=data.map(r=>({id:r.id,nums:r.nums,stelle:r.bonus||[],date:r.data_gioco||"",concorso:r.concorso||0,strategy:r.strategy||"",sum:r.somma||0,fromDb:true,giocato:r.giocato||false}));
+      const local=JSON.parse(localStorage.getItem(LS_TICKETS_EM)||"[]");
+      const dbIds=new Set(dbTickets.map(t=>String(t.id)));
+      const localOnly=local.filter(t=>!dbIds.has(String(t.id)));
+      setTickets([...dbTickets,...localOnly]);
+    }catch(err){
+      try{setTickets(JSON.parse(localStorage.getItem(LS_TICKETS_EM)||"[]"));}catch{}
+    }finally{setLoadingTickets(false);}
+  };
+  useEffect(()=>{loadTickets();},[]);
+  const toggleGiocato=async(id,current)=>{
+    try{await supabase.from("tickets").update({giocato:!current}).eq("id",id);}catch{}
+    setTickets(prev=>prev.map(t=>t.id===id?{...t,giocato:!current}:t));
+  };
+  const remove=async(id)=>{
+    try{await supabase.from("tickets").delete().eq("id",id);}catch{}
+    const local=JSON.parse(localStorage.getItem(LS_TICKETS_EM)||"[]");
+    localStorage.setItem(LS_TICKETS_EM,JSON.stringify(local.filter(t=>t.id!==id)));
+    setTickets(prev=>prev.filter(t=>t.id!==id));
+    setConfirmDel(null);setExpanded(null);
+  };
   function getResults(ticket){const fromN=ticket.concorso||0;return allDraws.filter(d=>(d.n||0)>fromN).map(d=>{const matches=d.nums.filter(n=>ticket.nums.includes(n));return{n:d.n,date:d.date,nums:d.nums,stelle:d.stelle,pts:matches.length,matches};});}
   return(
     <div>
-      <h2 style={{color:C.purple,fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>🎫 Biglietti Giocati</h2>
-      <p style={{color:C.dim,fontSize:11,marginBottom:16}}>Confronto automatico con le estrazioni successive ({allDraws.length} totali).</p>
+      <h2 style={{color:C.purple,fontFamily:"Georgia,serif",fontSize:16,marginBottom:4}}>🎫 Biglietti Giocati</h2>
+      {loadingTickets&&<div style={{textAlign:"center",padding:40,color:C.dim}}><div style={{fontSize:24,marginBottom:8}}>⏳</div><div>Caricamento biglietti...</div></div>}
+      {!loadingTickets&&<><div style={{background:`${C.teal}11`,border:`1px solid ${C.teal}33`,borderRadius:8,padding:"6px 12px",marginBottom:12,fontSize:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{color:C.teal}}>🔗 Supabase — sincronizzati su tutti i dispositivi</span><button onClick={loadTickets} style={{background:"transparent",color:C.teal,border:`1px solid ${C.teal}44`,borderRadius:6,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>↻ Aggiorna</button></div>
+      <p style={{color:C.dim,fontSize:11,marginBottom:16,lineHeight:1.7}}>{tickets.length} biglietti · confronto automatico con {allDraws.length} estrazioni.</p>
       {tickets.length===0&&(<div style={{textAlign:"center",color:C.dim,padding:"28px 0",fontSize:13,background:C.card,border:`1px solid ${C.border}`,borderRadius:12}}>Nessun biglietto.<br/><span style={{fontSize:11}}>Genera nel tab 🎯 e premi 💾 Salva.</span></div>)}
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         {[...tickets].reverse().map(ticket=>{
@@ -598,7 +624,7 @@ function TabBiglietti(){
                 {ticket.nums.map(n=>{const hitAny=results.some(r=>r.matches.includes(n));return<Ball key={n} num={n} color={hitAny?bestCol:ACCENT} size={30} glow={hitAny&&bestPts>=2}/>;})}
                 {ticket.stelle?.length&&<><span style={{color:C.dim,fontSize:14,alignSelf:"center"}}>│</span>{ticket.stelle.map(s=><Ball key={s} num={s} size={28} gold star/>)}<span style={{color:"#FFD700",fontSize:8}}>⭐</span></>}
               </div>
-              <div style={{flex:1,minWidth:120}}><div style={{color:C.dim,fontSize:10}}>Giocato {ticket.date} · dopo #{ticket.concorso||"?"} · Σ={sm(ticket.nums)}</div>{results.length>0?(<div style={{color:bestPts>=2?bestCol:C.dim,fontWeight:700,fontSize:12}}>{bestPts>=2?`🎯 max ${bestPts}✓`:`Nessun punto`}</div>):<div style={{color:C.dim,fontSize:11}}>⏳ In attesa</div>}</div>
+              <div style={{flex:1,minWidth:120}}><div style={{color:C.dim,fontSize:10}}>Giocato {ticket.date} · dopo #{ticket.concorso||"?"} · Σ={sm(ticket.nums)}{ticket.fromDb&&<span style={{marginLeft:4,color:C.teal,fontSize:8}}>☁️</span>}<button onClick={e=>{e.stopPropagation();toggleGiocato(ticket.id,ticket.giocato);}} style={{marginLeft:6,background:ticket.giocato?"#4A9E5C22":"#1a1a2e",color:ticket.giocato?C.green:C.dim,border:`1px solid ${ticket.giocato?C.green:C.border}`,borderRadius:6,padding:"1px 7px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{ticket.giocato?"✅ Giocato":"📋 Non giocato"}</button></div>{results.length>0?(<div style={{color:bestPts>=2?bestCol:C.dim,fontWeight:700,fontSize:12}}>{bestPts>=2?`🎯 max ${bestPts}✓`:`Nessun punto`}</div>):<div style={{color:C.dim,fontSize:11}}>⏳ In attesa</div>}</div>
               {bestPts>=2&&!pendingDel&&(<div style={{background:`${bestCol}22`,border:`2px solid ${bestCol}`,borderRadius:8,padding:"5px 10px",textAlign:"center"}}><div style={{color:bestCol,fontSize:20,fontWeight:900,fontFamily:"monospace"}}>{bestPts}</div><div style={{color:bestCol,fontSize:8}}>punti</div></div>)}
               <span style={{color:C.dim}}>{isOpen&&!pendingDel?"▲":"▼"}</span>
             </div>
@@ -618,7 +644,44 @@ function TabBiglietti(){
           </div>);
         })}
       </div>
-      {tickets.length>0&&(<div style={{marginTop:14,display:"flex",gap:8,alignItems:"center"}}><button onClick={()=>persist([])} style={{background:"transparent",color:"#C94040",border:"1px solid #C9404033",borderRadius:8,padding:"7px 16px",fontSize:11,cursor:"pointer"}}>🗑 Cancella tutti</button><span style={{color:C.dim,fontSize:10}}>{tickets.length} bigliett{tickets.length===1?"o":"i"}</span></div>)}
+      {tickets.length>0&&(()=>{
+        const strategies=["tattico","suggeritore","unificato","auto"];
+        const stratColors={"tattico":"#FF6B35","suggeritore":"#a78bfa","unificato":"#f59e0b","auto":ACCENT};
+        const stratIcons={"tattico":"⚡","suggeritore":"🔮","unificato":"⭐","auto":"🤖"};
+        const ticketsWithPts=tickets.map(ticket=>{const fromN=ticket.concorso||0;const draws=allDraws.filter(d=>(d.n||0)>fromN);const maxPts=draws.length>0?Math.max(...draws.map(d=>d.nums.filter(n=>ticket.nums.includes(n)).length)):0;return {...ticket,maxPts,hasResult:draws.length>0};});
+        const calcSt=(group)=>{if(group.length===0)return null;const avgPts=group.reduce((a,t)=>a+t.maxPts,0)/group.length;const best=Math.max(...group.map(t=>t.maxPts));const with2plus=group.filter(t=>t.maxPts>=2).length;const with3plus=group.filter(t=>t.maxPts>=3).length;const score=Math.round((avgPts/5)*40+(with2plus/group.length)*40+(best/5)*20);return{count:group.length,avgPts:avgPts.toFixed(2),best,with2plus,with3plus,score};};
+        const stratStats={};
+        strategies.forEach(s=>{const all=ticketsWithPts.filter(t=>(t.strategy||"auto")===s&&t.hasResult);const giocati=all.filter(t=>t.giocato);const nonGiocati=all.filter(t=>!t.giocato);if(all.length===0)return;stratStats[s]={...calcSt(all),giocati:calcSt(giocati),nonGiocati:calcSt(nonGiocati)};});
+        const sorted=Object.entries(stratStats).sort((a,b)=>b[1].score-a[1].score);
+        if(sorted.length===0)return null;
+        const maxScore=sorted[0][1].score||1;
+        return(<div style={{marginTop:24,background:C.card,border:`1px solid ${ACCENT}33`,borderRadius:12,padding:16}}>
+          <div style={{color:ACCENT,fontWeight:700,fontSize:14,marginBottom:4,fontFamily:"Georgia,serif"}}>📊 Performance Strategie</div>
+          <div style={{color:C.dim,fontSize:10,marginBottom:16,lineHeight:1.6}}>Score composito basato su punti medi, % biglietti con ≥2 punti e miglior risultato.</div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {sorted.map(([s,st],idx)=>{const col=stratColors[s]||ACCENT;const icon=stratIcons[s]||"🎯";const isFirst=idx===0;const barW=Math.round((st.score/maxScore)*100);return(<div key={s} style={{background:isFirst?`${col}11`:"#080816",border:`2px solid ${isFirst?col:col+"44"}`,borderRadius:10,padding:"12px 14px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,flex:1}}><span style={{fontSize:16}}>{icon}</span><span style={{color:col,fontWeight:700,fontSize:13,textTransform:"capitalize"}}>{s}</span>{isFirst&&<span style={{background:col,color:"#000",fontSize:9,fontWeight:900,padding:"2px 8px",borderRadius:10}}>🏆 MIGLIORE</span>}</div>
+                <div style={{background:`${col}22`,border:`2px solid ${col}`,borderRadius:8,padding:"4px 12px",textAlign:"center"}}><div style={{color:col,fontSize:18,fontWeight:900,fontFamily:"monospace"}}>{st.score}</div><div style={{color:col,fontSize:8}}>score</div></div>
+              </div>
+              <div style={{background:"#0a0a18",borderRadius:4,height:8,overflow:"hidden",marginBottom:10}}><div style={{background:`linear-gradient(90deg,${col},${col}88)`,height:"100%",width:`${barW}%`}}/></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:4}}>
+                {[{label:"✅ Giocati",data:st.giocati,col:C.green},{label:"📋 Non giocati",data:st.nonGiocati,col:C.dim}].map(({label,data,col:dc})=>(
+                  <div key={label} style={{background:"#0a0a18",borderRadius:8,padding:"8px 10px"}}>
+                    <div style={{color:dc,fontSize:10,fontWeight:700,marginBottom:6}}>{label}</div>
+                    {data?(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+                      {[{l:"Biglietti",v:data.count},{l:"Media pt",v:data.avgPts},{l:"Miglior",v:`${data.best}pt`},{l:"Con 2+",v:`${data.with2plus}/${data.count}`}].map(x=>(<div key={x.l} style={{background:"#050510",borderRadius:4,padding:"4px 6px",textAlign:"center"}}><div style={{color:C.dim,fontSize:7}}>{x.l}</div><div style={{color:dc,fontFamily:"monospace",fontSize:11,fontWeight:700}}>{x.v}</div></div>))}
+                    </div>):(<div style={{color:C.dim,fontSize:10,textAlign:"center",padding:"8px 0"}}>—</div>)}
+                  </div>
+                ))}
+              </div>
+            </div>);})}
+          </div>
+          <div style={{marginTop:12,color:C.dim,fontSize:9,lineHeight:1.7,borderTop:`1px solid ${C.border}`,paddingTop:10}}>Score = media punti (40%) + % biglietti con ≥2 punti (40%) + miglior risultato (20%).</div>
+        </div>);
+      })()}
+      {tickets.length>0&&(<div style={{marginTop:14,display:"flex",gap:8,alignItems:"center"}}><span style={{color:C.dim,fontSize:10}}>{tickets.length} biglietti totali</span></div>)}
+      </>}
     </div>
   );
 }
@@ -626,6 +689,21 @@ function TabBiglietti(){
 // AGGIUNTE AppEuroMillions.tsx
 // Inserire PRIMA della costante TABS
 // ═══════════════════════════════════════════════════════════════
+
+async function salvaTicketEM(ticket){
+  const prev=JSON.parse(localStorage.getItem(LS_TICKETS_EM)||"[]");
+  const exists=prev.some(t=>t.id===ticket.id);
+  if(!exists) localStorage.setItem(LS_TICKETS_EM,JSON.stringify([...prev,ticket]));
+  try{
+    const {error}=await supabase.from("tickets").upsert({
+      id:ticket.id,lotteria:"euromillions",nums:ticket.nums,
+      bonus:ticket.stelle||null,data_gioco:ticket.date,
+      concorso:ticket.concorso,strategy:ticket.strategy,somma:ticket.sum,
+    });
+    if(error)throw error;
+    return true;
+  }catch(err){console.error("Ticket EM save error:",err);return false;}
+}
 
 // ─── MOTORE AVANZATO EM ──────────────────────────────────────
 
@@ -906,11 +984,10 @@ function TabSuggeritore(){
     },50);
   };
 
-  const salvaBiglietto=(r,idx)=>{
+  const salvaBiglietto=async(r,idx)=>{
     const stelle=selStelle[idx]||r.topStelle;
     const ticket={id:Date.now()+idx,nums:r.nums,stelle,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:"suggeritore",sum:r.sum};
-    const prev=JSON.parse(localStorage.getItem(LS_TICKETS_EM)||"[]");
-    localStorage.setItem(LS_TICKETS_EM,JSON.stringify([...prev,ticket]));
+    await salvaTicketEM(ticket);
     setSavedIds(prev=>new Set([...prev,idx]));
     alert(`✅ Salvata!\n${r.nums.join("-")} | Stelle:${stelle?.join("-")||"—"}`);
   };
@@ -1219,11 +1296,10 @@ function TabGeneratoreUnificatoEM() {
     },100);
   };
 
-  const salvaBiglietto=(r,idx)=>{
+  const salvaBiglietto=async(r,idx)=>{
     const stelle=selStelle[idx]||r.topStelle;
     const ticket={id:Date.now()+idx,nums:r.nums,stelle,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:"unificato",sum:r.sum};
-    const prev=JSON.parse(localStorage.getItem(LS_TICKETS_EM)||"[]");
-    localStorage.setItem(LS_TICKETS_EM,JSON.stringify([...prev,ticket]));
+    await salvaTicketEM(ticket);
     setSavedIds(prev=>new Set([...prev,idx]));
     alert(`✅ Salvata!\n${r.nums.join("-")} | Stelle:${stelle?.join("-")||"—"}`);
   };
@@ -1378,16 +1454,16 @@ export default function App(){
         <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`}}>
           {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?`linear-gradient(135deg,${t.id==="biglietti"?C.purple:t.id==="suggeritore"?"#a78bfa":t.id==="unificato"?"#f59e0b":ACCENT},#2BA89A)`:"transparent",color:tab===t.id?"#fff":C.dim,border:tab===t.id?"none":`1px solid ${C.border}`,borderRadius:20,padding:"7px 10px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{t.icon} {t.label}</button>))}
         </div>
-        {tab==="animazione"&&<TabAnimazione/>}
-        {tab==="segnali"&&<TabSegnali/>}
-        {tab==="banda"&&<TabBanda/>}
-        {tab==="generatore"&&<TabGeneratore/>}
-        {tab==="suggeritore"&&<TabSuggeritore/>}
-        {tab==="analisi"&&<TabAnalisiAvanzata/>}
-        {tab==="unificato"&&<TabGeneratoreUnificatoEM/>}        
-        {tab==="confronto"&&<TabConfronto/>}
-        {tab==="estrazioni"&&<TabEstrazioni onUpdate={handleUpdate}/>}
-        {tab==="biglietti"&&<TabBiglietti/>}
+        <div style={{display:tab==="animazione"?"block":"none"}}><TabAnimazione/></div>
+        <div style={{display:tab==="segnali"?"block":"none"}}><TabSegnali/></div>
+        <div style={{display:tab==="banda"?"block":"none"}}><TabBanda/></div>
+        <div style={{display:tab==="generatore"?"block":"none"}}><TabGeneratore/></div>
+        <div style={{display:tab==="suggeritore"?"block":"none"}}><TabSuggeritore/></div>
+        <div style={{display:tab==="analisi"?"block":"none"}}><TabAnalisiAvanzata/></div>
+        <div style={{display:tab==="unificato"?"block":"none"}}><TabGeneratoreUnificatoEM/></div>
+        <div style={{display:tab==="confronto"?"block":"none"}}><TabConfronto/></div>
+        <div style={{display:tab==="estrazioni"?"block":"none"}}><TabEstrazioni onUpdate={handleUpdate}/></div>
+        <div style={{display:tab==="biglietti"?"block":"none"}}><TabBiglietti/></div>
         <div style={{marginTop:24,background:"#070712",border:"1px solid #111122",borderRadius:10,padding:12}}>
           <div style={{color:"#353545",fontSize:10,lineHeight:1.7}}>⚠️ Strumento puramente statistico — nessun potere predittivo. Il gioco può causare dipendenza. Vietato ai minori di 18 anni. Dati storici: {allDraws.length} estrazioni.</div>
         </div>
