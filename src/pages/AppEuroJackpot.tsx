@@ -728,7 +728,12 @@ function TabBiglietti(){
 
 // ─── MOTORE AVANZATO EJ (50 numeri, 5 pick) ──────────────────
 
-<button onClick={async()=>{const t={id:Date.now(),nums:ticket.nums,bonus,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy,sum:ticket.sum};await salvaTicketEJ(t);alert(`✅ Salvata!\n${ticket.nums.join("-")} | EN:${bonus?.join("-")||"—"}`);}}
+<button onClick={async()=>{const t={id:Date.now(),nums:ticket.nums,bonus,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy,sum:ticket.sum};await salvaTicketEJ(t);alert(`✅ Salvata!\n${ticket.nums.join("-")} | EN:${bonus?.join("-")||"—"}`);}} style={{width:"100%",padding:"10px",background:`${C.purple}22`,color:C.purple,border:`2px solid ${C.purple}`,borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva → 🎫 Biglietti</button>
+        </div>)}
+      </div>)}
+    </div>
+  );
+}
 
 async function salvaTicketEJ(ticket){
   const prev=JSON.parse(localStorage.getItem(LS_TICKETS_EJ)||"[]");
