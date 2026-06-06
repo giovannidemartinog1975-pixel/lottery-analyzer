@@ -1176,7 +1176,7 @@ function TabSuggeritore(){
       id:Date.now()+idx,nums:r.nums,superstar:ss,
       date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),
       concorso:allDraws[allDraws.length-1]?.n||0,
-      strategy:"suggeritore",sum:r.sum,
+      strategy:"suggeritore",sum:r.sum,score:r.quality||0,
     };
     const prev=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");
     localStorage.setItem(LS_TICKETS_S,JSON.stringify([...prev,ticket]));
@@ -2028,7 +2028,7 @@ function TabPredittivo() {
 
   const salvaBiglietto=async(r,idx)=>{
     const ss=selSS[idx]||getSSSuggestions(allDraws,r.sum,sigmaReale)[0]?.num||null;
-    const ticket={id:Date.now()+idx,nums:r.nums,superstar:ss,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:"predittivo",sum:r.sum};
+    const ticket={id:Date.now()+idx,nums:r.nums,superstar:ss,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:"predittivo",sum:r.sum,score:Math.round(r.predScore)||0};
     await salvaTicketSE(ticket);
     setSavedIds(prev=>new Set([...prev,idx]));
     alert(`✅ Salvata!\n${r.nums.join("-")} | SS:${ss||"—"}`);
@@ -2465,7 +2465,7 @@ function TabGeneratoreUnificato() {
       id:Date.now()+idx,nums:r.nums,superstar:ss,
       date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),
       concorso:allDraws[allDraws.length-1]?.n||0,
-      strategy:"unificato",sum:r.sum,
+      strategy:"unificato",sum:r.sum,score:r.total||0,
     };
     await salvaTicketSE(ticket);
     setSavedIds(prev=>new Set([...prev,idx]));
@@ -2655,7 +2655,7 @@ function TabBiglietti(){
       const dbTickets=data.map(r=>({
         id:r.id,nums:r.nums,superstar:r.bonus?r.bonus[0]||null:null,
         date:r.data_gioco||"",concorso:r.concorso||0,
-        strategy:r.strategy||"",sum:r.somma||0,fromDb:true,giocato:r.giocato||false,inSistema:r.in_sistema||false,
+        strategy:r.strategy||"",sum:r.somma||0,fromDb:true,giocato:r.giocato||false,inSistema:r.in_sistema||false,score:r.score||0,
       }));
       // Merge con localStorage (biglietti locali non ancora su DB)
       const local=JSON.parse(localStorage.getItem(LS_TICKETS_S)||"[]");
@@ -2743,7 +2743,7 @@ function TabBiglietti(){
                         <span style={{background:`${ACCENT}22`,color:ACCENT,borderRadius:4,padding:"1px 6px",fontSize:8,fontFamily:"monospace"}}>Σ{s}</span>
                         <span style={{background:"#12122a",color:Math.abs(z)<1?C.green:Math.abs(z)<2?C.orange:C.red,borderRadius:4,padding:"1px 6px",fontSize:8}}>z={z.toFixed(2)}</span>
                         <span style={{background:"#12122a",color:C.dim,borderRadius:4,padding:"1px 6px",fontSize:8}}>{evens}P–{ticket.nums.length-evens}D</span>
-                        <span style={{background:`${C.teal}22`,color:C.teal,borderRadius:4,padding:"1px 6px",fontSize:8}}>rit.{ritMedio}</span>
+                        <span style={{background:`${C.teal}22`,color:C.teal,borderRadius:4,padding:"1px 6px",fontSize:8}}>rit.{ritMedio}</span>{ticket.score>0&&<span style={{background:"#FFD70022",color:"#FFD700",borderRadius:4,padding:"1px 6px",fontSize:8,fontWeight:700}}>score {ticket.score}</span>}
                       </div>);
                     })()}
                     {ticket.strategy&&<span style={{marginLeft:6,background:`${C.purple}22`,color:C.purple,borderRadius:4,padding:"1px 5px",fontSize:9}}>{ticket.strategy}</span>}
@@ -2943,6 +2943,7 @@ async function salvaTicketSE(ticket){
       concorso:ticket.concorso,
       strategy:ticket.strategy,
       somma:ticket.sum,
+      score:ticket.score||0,
     });
     if(error) throw error;
     return true;
