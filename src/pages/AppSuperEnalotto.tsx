@@ -2644,6 +2644,7 @@ function TabBiglietti(){
   const [loadingTickets,setLoadingTickets]=useState(true);
   const [expanded,setExpanded]=useState(null);
   const [confirmDel,setConfirmDel]=useState(null);
+  const [maxSestine,setMaxSestine]=useState(5);
 
   // Carica biglietti da Supabase + localStorage
   const loadTickets=async()=>{
@@ -2807,7 +2808,7 @@ function TabBiglietti(){
       </div>
       {tickets.filter(t=>t.inSistema).length>=2&&(()=>{
         const candidati=tickets.filter(t=>t.inSistema);
-        const [maxSestine,setMaxSestine]=React.useState(5);
+        
         const series=buildSeries(allDraws);
         const sums=series.map(d=>d.sum);
         const muReale=avg(sums),sigmaReale=std(sums);
