@@ -2734,6 +2734,18 @@ function TabBiglietti(){
                 <div style={{flex:1,minWidth:120}}>
                   <div style={{color:C.dim,fontSize:10}}>
                     {ticket.date} · dopo #{ticket.concorso||"?"} · Σ={ticket.sum||sm(ticket.nums)}
+                    {(()=>{
+                      const s=ticket.sum||sm(ticket.nums);
+                      const evens=ticket.nums.filter(n=>n%2===0).length;
+                      const z=zOf(s,MU_TEO,SIGMA_TEO);
+                      const ritMedio=Math.round(ticket.nums.reduce((acc,n)=>{let r=allDraws.length;for(let i=allDraws.length-1;i>=0;i--){if(allDraws[i].nums.includes(n)){r=allDraws.length-1-i;break;}}return acc+r;},0)/ticket.nums.length);
+                      return(<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>
+                        <span style={{background:`${ACCENT}22`,color:ACCENT,borderRadius:4,padding:"1px 6px",fontSize:8,fontFamily:"monospace"}}>Σ{s}</span>
+                        <span style={{background:"#12122a",color:Math.abs(z)<1?C.green:Math.abs(z)<2?C.orange:C.red,borderRadius:4,padding:"1px 6px",fontSize:8}}>z={z.toFixed(2)}</span>
+                        <span style={{background:"#12122a",color:C.dim,borderRadius:4,padding:"1px 6px",fontSize:8}}>{evens}P–{ticket.nums.length-evens}D</span>
+                        <span style={{background:`${C.teal}22`,color:C.teal,borderRadius:4,padding:"1px 6px",fontSize:8}}>rit.{ritMedio}</span>
+                      </div>);
+                    })()}
                     {ticket.strategy&&<span style={{marginLeft:6,background:`${C.purple}22`,color:C.purple,borderRadius:4,padding:"1px 5px",fontSize:9}}>{ticket.strategy}</span>}
                     {ticket.fromDb&&<span style={{marginLeft:4,color:C.teal,fontSize:8}}>☁️</span>}
                     <button onClick={e=>{e.stopPropagation();toggleGiocato(ticket.id,ticket.giocato);}} style={{marginLeft:6,background:ticket.giocato?"#4A9E5C22":"#1a1a2e",color:ticket.giocato?C.green:C.dim,border:`1px solid ${ticket.giocato?C.green:C.border}`,borderRadius:6,padding:"1px 7px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{ticket.giocato?"✅ Giocato":"📋 Non giocato"}</button>
@@ -3024,7 +3036,7 @@ export default function App(){
             <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:C.dim,fontSize:14}}>│</span>{last.jolly?<Ball num={last.jolly} color="#aaa" size={28}/>:null}<span style={{color:"#aaa",fontSize:9}}>J</span>{last.superstar?<Ball num={last.superstar} size={28} gold/>:null}<span style={{color:"#FFD700",fontSize:9}}>SS</span></div>
           </div>)}
         </div>
-        <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:100,background:C.bg,paddingTop:8}}>
           {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?`linear-gradient(135deg,${t.id==="biglietti"?C.purple:t.id==="suggeritore"?"#a78bfa":t.id==="predittivo"?"#e879f9":t.id==="unificato"?"#f59e0b":ACCENT},#2BA89A)`:"transparent",color:tab===t.id?"#fff":C.dim,border:tab===t.id?"none":`1px solid ${C.border}`,borderRadius:20,padding:"7px 10px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{t.icon} {t.label}</button>))}
         </div>
         <div style={{display:tab==="animazione"?"block":"none"}}><TabAnimazione/></div>
