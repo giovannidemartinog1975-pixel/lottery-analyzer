@@ -195,8 +195,8 @@ function drawCanvas(canvas,series,frame,showMA5,hovered,W,H){
   if(!canvas||!series.length) return;
   const ctx=canvas.getContext("2d");
   const dpr=window.devicePixelRatio||1;
-  canvas.width=W*dpr; canvas.height=H*dpr;
-  canvas.style.width=W+"px"; canvas.style.height=H+"px";
+  canvas.width=canvasW*dpr; canvas.height=H*dpr;
+  canvas.style.width=canvasW+"px"; canvas.style.height=H+"px";
   ctx.scale(dpr,dpr);
   const CW=W-PAD.left-PAD.right, CH=H-PAD.top-PAD.bottom;
   const total=series.length;
@@ -275,7 +275,9 @@ function TabAnimazione(){
   const [hovered,setHovered]=useState(null);
   const frameRef=useRef(1),rafRef=useRef(null),canvasRef=useRef(null),containerRef=useRef(null);
   const [W,setW]=useState(660);
+  const [pxPerPoint,setPxPerPoint]=useState(8);
   const total=series.length;
+  const canvasW=Math.max(W,total*pxPerPoint);
   useEffect(()=>{
     const obs=new ResizeObserver(e=>{setW(Math.max(280,Math.floor(e[0].contentRect.width)-16));});
     if(containerRef.current) obs.observe(containerRef.current);
@@ -292,9 +294,9 @@ function TabAnimazione(){
     else cancelAnimationFrame(rafRef.current);
     return()=>cancelAnimationFrame(rafRef.current);
   },[playing,animate]);
-  useEffect(()=>{drawCanvas(canvasRef.current,series,frame,showMA5,hovered,W,260);},[frame,showMA5,hovered,W,series]);
+  useEffect(()=>{drawCanvas(canvasRef.current,series,frame,showMA5,hovered,canvasW,260);},[frame,showMA5,hovered,canvasW,series]);
   useEffect(()=>{
-    if(!playing){const id=setInterval(()=>drawCanvas(canvasRef.current,series,frame,showMA5,hovered,W,260),50);return()=>clearInterval(id);}
+    if(!playing){const id=setInterval(()=>drawCanvas(canvasRef.current,series,frame,showMA5,hovered,canvasW,260),50);return()=>clearInterval(id);}
   },[playing,frame,showMA5,hovered,W,series]);
   const onMove=e=>{
     const rect=canvasRef.current.getBoundingClientRect();
@@ -323,8 +325,13 @@ function TabAnimazione(){
         <KpiCard label="μ reale" value={muReale.toFixed(1)} color={C.teal} sub={`Δ ${(muReale-MU_TEO).toFixed(1)}`}/>
         <KpiCard label="z-score" value={cur.zScore?.toFixed(2)} color={Math.abs(cur.zScore)<1?C.green:Math.abs(cur.zScore)<2?C.orange:C.red}/>
       </div>
-      <div style={{borderRadius:10,overflow:"hidden",border:"1px solid #1a1a2e",marginBottom:10}}>
-        <canvas ref={canvasRef} style={{display:"block",cursor:"crosshair",width:"100%"}} onMouseMove={onMove} onMouseLeave={()=>setHovered(null)} onTouchMove={onMove} onTouchEnd={()=>setHovered(null)}/>
+      <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}>
+        <span style={{color:C.dim,fontSize:10}}>Zoom:</span>
+        {[4,6,8,12,16].map(p=>(<button key={p} onClick={()=>setPxPerPoint(p)} style={{background:pxPerPoint===p?`${ACCENT}22`:"transparent",color:pxPerPoint===p?ACCENT:C.dim,border:`1px solid ${pxPerPoint===p?ACCENT:C.border}`,borderRadius:6,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{p===4?"Min":p===6?"S":p===8?"M":p===12?"L":"Max"}</button>))}
+        <span style={{color:C.dim,fontSize:9,marginLeft:"auto"}}>{total} estrazioni · {canvasW}px</span>
+      </div>
+      <div style={{borderRadius:10,overflow:"hidden",border:"1px solid #1a1a2e",marginBottom:10,overflowX:"auto"}}>
+        <canvas ref={canvasRef} style={{display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setHovered(null)} onTouchMove={onMove} onTouchEnd={()=>setHovered(null)}/>
       </div>
       <input type="range" min={1} max={total} step={0.05} value={frame}
         onChange={e=>{cancelAnimationFrame(rafRef.current);setPlaying(false);frameRef.current=+e.target.value;setFrame(+e.target.value);}}
