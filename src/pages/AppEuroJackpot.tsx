@@ -222,7 +222,7 @@ function TabBanda(){
   const muT=useAdaptive?muReale:MU_TEO,sigT=useAdaptive?sigmaReale:SIGMA_TEO;
   const loB=Math.round(muT-kBand*sigT),hiB=Math.round(muT+kBand*sigT);
   const inBand=series.filter(d=>d.sum>=loB&&d.sum<=hiB).length;
-  const chartData=series.slice(-200).map(d=>({date:d.date?.substring(0,5)||"",sum:d.sum,mu:d.mu,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale)}));
+  const chartData=useMemo(()=>{const base=series.slice(-200).map(d=>({date:d.date?.substring(0,5)||"",sum:d.sum,mu:d.mu,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale)}));if(predizione){base.push({date:"pred.",sum:null,mu:null,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale),pred:predizione.combined,predLo:predizione.lo,predHi:predizione.hi});}return base;},[series,muReale,kBand,sigmaReale,predizione]);
   return(
     <div>
       <h2 style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:16,marginBottom:12}}>📐 Banda Adattiva</h2>
@@ -256,10 +256,39 @@ function TabBanda(){
           <ReferenceLine y={MU_TEO} stroke={`${ACCENT}99`} strokeDasharray="6 3" strokeWidth={1.5}/>
           <Line type="monotone" dataKey="mu" stroke={C.teal} strokeWidth={2} dot={false} name="μ"/>
           <Line type="monotone" dataKey="sum" stroke={ACCENT} strokeWidth={2} dot={(props)=>{const{cx,cy,payload}=props;const inB=payload.sum>=loB&&payload.sum<=hiB;return <circle key={cx} cx={cx} cy={cy} r={3} fill={inB?"#4A9E5C":"#C94040"} stroke="none"/>;}} name="Somma"/>
+          <Line type="monotone" dataKey="pred" stroke="#e879f9" strokeWidth={3} strokeDasharray="6 3" dot={(props)=>{const{cx,cy,payload}=props;if(!payload.pred)return null;return(<g key={cx}><circle cx={cx} cy={cy} r={8} fill="#e879f933" stroke="#e879f9" strokeWidth={2}/><circle cx={cx} cy={cy} r={4} fill="#e879f9"/></g>);}} name="Predizione"/>
+          <Line type="monotone" dataKey="predLo" stroke="#e879f944" strokeWidth={1} strokeDasharray="3 3" dot={false} name="Pred.Lo"/>
+          <Line type="monotone" dataKey="predHi" stroke="#e879f944" strokeWidth={1} strokeDasharray="3 3" dot={false} name="Pred.Hi"/>
         </ComposedChart>
       </ResponsiveContainer>
     </div>
-  );
+  ){predizione&&(<div style={{background:"#1a001a",border:"2px solid #e879f9",borderRadius:12,padding:14,marginTop:14}}>
+        <div style={{color:"#e879f9",fontWeight:700,fontSize:13,marginBottom:10}}>🔮 Predizione Prossima Estrazione</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,marginBottom:12}}>
+          {[{l:"Somma predetta",v:predizione.combined,c:"#e879f9"},{l:"Range",v:`${predizione.lo}–${predizione.hi}`,c:C.dim},{l:"LSTM",v:predizione.lstm,c:"#a78bfa"},{l:"Regressione",v:predizione.reg,c:C.orange},{l:"WMA",v:predizione.wma,c:C.teal},{l:"z-score",v:predizione.zPred.toFixed(2),c:Math.abs(predizione.zPred)<1?C.green:Math.abs(predizione.zPred)<2?C.orange:C.red},{l:"Trend",v:(predizione.trend>=0?"+":"")+predizione.trend,c:predizione.trend>=0?C.orange:C.teal}].map(x=>(<div key={x.l} style={{background:"#0a0010",borderRadius:8,padding:"8px 10px",textAlign:"center",border:"1px solid #e879f933"}}><div style={{color:C.dim,fontSize:8,marginBottom:2}}>{x.l}</div><div style={{color:x.c,fontFamily:"monospace",fontSize:13,fontWeight:900}}>{x.v}</div></div>))}
+        </div>
+        <div style={{color:C.dim,fontSize:9,lineHeight:1.7}}>Pesi: LSTM 40% · Regressione 35% · WMA 25% · Confidenza ±{Math.round(sigmaReale*0.6)}</div>
+      </div>)}
+      {storicoPred.length>0&&(<div style={{background:C.card,border:"1px solid #e879f933",borderRadius:12,padding:14,marginTop:14}}>
+        <div style={{color:"#e879f9",fontWeight:700,fontSize:13,marginBottom:10}}>📊 Storico Predizioni</div>
+        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
+          <thead><tr>{["Concorso","Predetta","Reale","Scarto","z","Trend"].map(h=>(<th key={h} style={{color:C.dim,padding:"4px 8px",textAlign:"center",borderBottom:`1px solid ${C.border}`,fontWeight:700}}>{h}</th>))}</tr></thead>
+          <tbody>{storicoPred.map((p,i)=>{const col=p.scarto===null?"#555":Math.abs(p.scarto)<=20?C.green:Math.abs(p.scarto)<=40?C.orange:C.red;return(<tr key={i} style={{background:i%2===0?"#080816":"#0a0a18"}}>
+            <td style={{color:ACCENT,padding:"5px 8px",textAlign:"center",fontFamily:"monospace"}}>#{p.concorso||"—"}</td>
+            <td style={{color:"#e879f9",padding:"5px 8px",textAlign:"center",fontFamily:"monospace"}}>{p.somma_predetta}</td>
+            <td style={{color:p.somma_reale?C.text:"#555",padding:"5px 8px",textAlign:"center",fontFamily:"monospace"}}>{p.somma_reale||"⏳"}</td>
+            <td style={{color:col,padding:"5px 8px",textAlign:"center",fontFamily:"monospace",fontWeight:700}}>{p.scarto!=null?(p.scarto>=0?"+":"")+p.scarto:"—"}</td>
+            <td style={{color:C.dim,padding:"5px 8px",textAlign:"center",fontFamily:"monospace"}}>{p.z_predetto?.toFixed(2)||"—"}</td>
+            <td style={{color:p.trend>=0?C.orange:C.teal,padding:"5px 8px",textAlign:"center",fontFamily:"monospace"}}>{p.trend!=null?(p.trend>=0?"+":"")+p.trend:"—"}</td>
+          </tr>);})}
+          </tbody>
+        </table></div>
+      </div>)}
+    </div>
+    );
+}
+
+function TabGeneratore(){;
 }
 
 function TabGeneratore(){
@@ -576,6 +605,15 @@ function TabEstrazioni({onUpdate}){
     }catch(err){setSuccess(`✅ Salvato localmente`);}
     setSavingToDb(false);
     persist([...saved,newDraw].sort((a,b)=>(a.n||0)-(b.n||0)));
+    try{
+      if(allDraws.length>=6){
+        const lstm=computeLSTMEJ(allDraws);
+        const reg=computeRegressionEJ(allDraws);
+        const combined=Math.round(lstm.predictedSum*0.40+reg.predicted*0.35+reg.wma*0.25);
+        const zPred=zOf(combined,MU_TEO,SIGMA_TEO);
+        await supabase.from("predizioni").insert({lotteria:"eurojackpot",concorso:n,data_predizione:dateIso,somma_predetta:combined,somma_reale:sm(newDraw.nums),lstm:lstm.predictedSum,regressione:reg.predicted,wma:Math.round(reg.wma),trend:lstm.currentTrend,z_predetto:parseFloat(zPred.toFixed(3)),scarto:sm(newDraw.nums)-combined});
+      }
+    }catch(err){console.error("Predizione EJ save error:",err);}
     setConcorso("");setDate("");setNums(Array(PICK).fill(""));setBonus(Array(BONUS_COUNT).fill(""));
     setTimeout(()=>setSuccess(""),4000);
   };
@@ -1686,7 +1724,7 @@ export default function App(){
             <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:C.dim,fontSize:14}}>│</span>{(last.bonus||[]).map(b=><Ball key={b} num={b} size={28} gold/>)}<span style={{color:"#FFD700",fontSize:9}}>EN</span></div>
           </div>)}
         </div>
-        <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:100,background:C.bg,paddingTop:8}}>
           {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?`linear-gradient(135deg,${t.id==="biglietti"?C.purple:t.id==="suggeritore"?"#a78bfa":t.id==="unificato"?"#f59e0b":ACCENT},#2BA89A)`:"transparent",color:tab===t.id?"#fff":C.dim,border:tab===t.id?"none":`1px solid ${C.border}`,borderRadius:20,padding:"7px 10px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{t.icon} {t.label}</button>))}
         </div>
         <div style={{display:tab==="animazione"?"block":"none"}}><TabAnimazione/></div>
