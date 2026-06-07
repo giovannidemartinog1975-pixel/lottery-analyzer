@@ -277,7 +277,7 @@ function TabAnimazione(){
   const [W,setW]=useState(660);
   const [pxPerPoint,setPxPerPoint]=useState(8);
   const total=series.length;
-  const canvasW=Math.max(W,total*pxPerPoint);
+  const canvasW=useMemo(()=>Math.max(W,total*pxPerPoint),[W,total,pxPerPoint]);
   useEffect(()=>{
     const obs=new ResizeObserver(e=>{setW(Math.max(280,Math.floor(e[0].contentRect.width)-16));});
     if(containerRef.current) obs.observe(containerRef.current);
