@@ -261,8 +261,8 @@ function TabBanda(){
           <Line type="monotone" dataKey="predHi" stroke="#e879f944" strokeWidth={1} strokeDasharray="3 3" dot={false} name="Pred.Hi"/>
         </ComposedChart>
       </ResponsiveContainer>
-    </div>
-    {predizione&&(<div style={{background:"#1a001a",border:"2px solid #e879f9",borderRadius:12,padding:14,marginTop:14}}>
+(<div style={{background
+    {predizione&&:"#1a001a",border:"2px solid #e879f9",borderRadius:12,padding:14,marginTop:14}}>
         <div style={{color:"#e879f9",fontWeight:700,fontSize:13,marginBottom:10}}>🔮 Predizione Prossima Estrazione</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,marginBottom:12}}>
           {[{l:"Somma predetta",v:predizione.combined,c:"#e879f9"},{l:"Range",v:`${predizione.lo}–${predizione.hi}`,c:C.dim},{l:"LSTM",v:predizione.lstm,c:"#a78bfa"},{l:"Regressione",v:predizione.reg,c:C.orange},{l:"WMA",v:predizione.wma,c:C.teal},{l:"z-score",v:predizione.zPred.toFixed(2),c:Math.abs(predizione.zPred)<1?C.green:Math.abs(predizione.zPred)<2?C.orange:C.red},{l:"Trend",v:(predizione.trend>=0?"+":"")+predizione.trend,c:predizione.trend>=0?C.orange:C.teal}].map(x=>(<div key={x.l} style={{background:"#0a0010",borderRadius:8,padding:"8px 10px",textAlign:"center",border:"1px solid #e879f933"}}><div style={{color:C.dim,fontSize:8,marginBottom:2}}>{x.l}</div><div style={{color:x.c,fontFamily:"monospace",fontSize:13,fontWeight:900}}>{x.v}</div></div>))}
