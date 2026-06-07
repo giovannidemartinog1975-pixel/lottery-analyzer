@@ -195,8 +195,8 @@ function drawCanvas(canvas,series,frame,showMA5,hovered,W,H){
   if(!canvas||!series.length) return;
   const ctx=canvas.getContext("2d");
   const dpr=window.devicePixelRatio||1;
-  canvas.width=canvasW*dpr; canvas.height=H*dpr;
-  canvas.style.width=canvasW+"px"; canvas.style.height=H+"px";
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  canvas.style.width=W+"px"; canvas.style.height=H+"px";
   ctx.scale(dpr,dpr);
   const CW=W-PAD.left-PAD.right, CH=H-PAD.top-PAD.bottom;
   const total=series.length;
