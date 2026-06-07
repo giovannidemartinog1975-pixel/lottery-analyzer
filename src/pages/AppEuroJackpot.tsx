@@ -90,7 +90,7 @@ function TabAnimazione(){
     const canvas=canvasRef.current;if(!canvas||!series.length)return;
     const ctx=canvas.getContext("2d"),dpr=window.devicePixelRatio||1,PAD={top:40,right:24,bottom:44,left:48};
     canvas.width=canvasW*dpr;canvas.height=240*dpr;canvas.style.width=canvasW+"px";canvas.style.height="240px";ctx.scale(dpr,dpr);
-    const CW=W-PAD.left-PAD.right,CH=240-PAD.top-PAD.bottom,visible=Math.min(Math.ceil(frame),total);
+    const CW=canvasW-PAD.left-PAD.right,CH=240-PAD.top-PAD.bottom,visible=Math.min(Math.ceil(frame),total);
     const toX=i=>PAD.left+(i/(Math.max(total-1,1)))*CW,toY=v=>PAD.top+(1-(v-20)/(220-20))*CH;
     ctx.fillStyle=C.bg;ctx.fillRect(0,0,canvasW,240);
     [20,50,80,110,127.5,150,180,210].forEach(v=>{const y=toY(v),isMu=v===127.5;ctx.beginPath();ctx.moveTo(PAD.left,y);ctx.lineTo(PAD.left+CW,y);ctx.setLineDash(isMu?[6,3]:[2,6]);ctx.strokeStyle=isMu?`${ACCENT}44`:"rgba(255,255,255,0.05)";ctx.lineWidth=isMu?1.5:1;ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=isMu?`${ACCENT}99`:"rgba(255,255,255,0.3)";ctx.font=`${isMu?"bold ":""}9px monospace`;ctx.textAlign="right";ctx.fillText(isMu?"127.5":Math.round(v),PAD.left-4,y+3);});
