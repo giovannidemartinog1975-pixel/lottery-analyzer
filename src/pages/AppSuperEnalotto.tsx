@@ -497,10 +497,30 @@ function TabBanda(){
   const muReale=avg(sums),sigmaReale=std(sums);
   const [kBand,setKBand]=useState(1.5);
   const [useAdaptive,setAdaptive]=useState(true);
+  const [storicoPred,setStoricoPred]=useState([]);
+  const predizione=useMemo(()=>{
+    if(allDraws.length<6) return null;
+    const lstm=computeLSTM(allDraws);
+    const reg=computeRegression(allDraws);
+    const combined=Math.round(lstm.predictedSum*0.40+reg.predicted*0.35+reg.wma*0.25);
+    const zPred=zOf(combined,MU_TEO,SIGMA_TEO);
+    const confidence=Math.round(sigmaReale*0.6);
+    return{combined,lstm:lstm.predictedSum,reg:reg.predicted,wma:reg.wma,zPred:parseFloat(zPred.toFixed(2)),lo:combined-confidence,hi:combined+confidence,trend:lstm.currentTrend};
+  },[allDraws,sigmaReale]);
+  useEffect(()=>{
+    async function loadStorico(){
+      try{const{data,error}=await supabase.from("predizioni").select("*").eq("lotteria","superenalotto").order("concorso",{ascending:false}).limit(30);if(error)throw error;setStoricoPred(data||[]);}catch{}
+    }
+    loadStorico();
+  },[allDraws.length]);
   const muT=useAdaptive?muReale:MU_TEO,sigT=useAdaptive?sigmaReale:SIGMA_TEO;
   const loB=Math.round(muT-kBand*sigT),hiB=Math.round(muT+kBand*sigT);
   const inBand=series.filter(d=>d.sum>=loB&&d.sum<=hiB).length;
-  const chartData=series.slice(-200).map(d=>({date:d.date?.substring(0,5)||"",sum:d.sum,mu:d.mu,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale)}));
+  const chartData=useMemo(()=>{
+    const base=series.slice(-200).map(d=>({date:d.date?.substring(0,5)||"",sum:d.sum,mu:d.mu,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale)}));
+    if(predizione){base.push({date:"pred.",sum:null,mu:null,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale),pred:predizione.combined,predLo:predizione.lo,predHi:predizione.hi});}
+    return base;
+  },[series,muReale,kBand,sigmaReale,predizione]);
   const bands=[0.5,1.0,1.5,2.0,2.5].map(k=>({k,loA:Math.round(muReale-k*sigmaReale),hiA:Math.round(muReale+k*sigmaReale),inA:sums.filter(s=>s>=muReale-k*sigmaReale&&s<=muReale+k*sigmaReale).length}));
   return(
     <div>
@@ -542,10 +562,27 @@ function TabBanda(){
           <Line type="monotone" dataKey="sum" stroke={ACCENT} strokeWidth={2}
             dot={(props)=>{const{cx,cy,payload}=props;const inB=payload.sum>=loB&&payload.sum<=hiB;return <circle key={cx} cx={cx} cy={cy} r={3} fill={inB?"#4A9E5C":"#C94040"} stroke="none"/>;}}
             name="Somma"/>
+          <Line type="monotone" dataKey="pred" stroke="#e879f9" strokeWidth={3} strokeDasharray="6 3"
+            dot={(props)=>{const{cx,cy,payload}=props;if(!payload.pred)return null;return(<g key={cx}><circle cx={cx} cy={cy} r={8} fill="#e879f933" stroke="#e879f9" strokeWidth={2}/><circle cx={cx} cy={cy} r={4} fill="#e879f9"/></g>);}}
+            name="Predizione"/>
+          <Line type="monotone" dataKey="predLo" stroke="#e879f944" strokeWidth={1} strokeDasharray="3 3" dot={false} name="Pred.Lo"/>
+          <Line type="monotone" dataKey="predHi" stroke="#e879f944" strokeWidth={1} strokeDasharray="3 3" dot={false} name="Pred.Hi"/>
         </ComposedChart>
       </ResponsiveContainer>
-      <div style={{display:"flex",flexDirection:"column",gap:5,marginTop:12}}>
-        {bands.map(b=>(<div key={b.k} onClick={()=>setKBand(b.k)} style={{cursor:"pointer",display:"flex",gap:10,alignItems:"center",padding:"7px 10px",borderRadius:8,background:kBand===b.k?`${ACCENT}0a`:C.card,border:`1px solid ${kBand===b.k?`${ACCENT}44`:C.border}`}}>
+      {predizione&&(<div style={{background:"#1a001a",border:"2px solid #e879f9",borderRadius:12,padding:14,marginTop:14}}>
+        <div style={{color:"#e879f9",fontWeight:700,fontSize:13,marginBottom:10}}>🔮 Predizione Prossima Estrazione</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,marginBottom:12}}>
+          {[{l:"Somma predetta",v:predizione.combined,c:"#e879f9"},{l:"Range",v:`${predizione.lo}–${predizione.hi}`,c:C.dim},{l:"LSTM",v:predizione.lstm,c:"#a78bfa"},{l:"Regressione",v:predizione.reg,c:C.orange},{l:"WMA",v:predizione.wma,c:C.teal},{l:"z-score pred.",v:predizione.zPred.toFixed(2),c:Math.abs(predizione.zPred)<1?C.green:Math.abs(predizione.zPred)<2?C.orange:C.red},{l:"Trend",v:(predizione.trend>0?"+":"")+predizione.trend,c:predizione.trend>0?C.orange:C.teal}].map(x=>(<div key={x.l} style={{background:"#0a0010",borderRadius:8,padding:"8px 10px",textAlign:"center",border:`1px solid #e879f933`}}><div style={{color:C.dim,fontSize:8,marginBottom:2}}>{x.l}</div><div style={{color:x.c,fontFamily:"monospace",fontSize:13,fontWeight:900}}>{x.v}</div></div>))}
+        </div>
+        <div style={{color:C.dim,fontSize:9,lineHeight:1.7}}>Pesi: LSTM 40% · Regressione 35% · Media Mobile 25% · Banda confidenza ±{Math.round(sigmaReale*0.6)}</div>
+      </div>)}
+      {storicoPred.length>0&&(<div style={{background:C.card,border:`1px solid #e879f933`,borderRadius:12,padding:14,marginTop:14}}>
+        <div style={{color:"#e879f9",fontWeight:700,fontSize:13,marginBottom:10}}>📊 Storico Predizioni</div>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
+            <thead><tr>{["Concorso","Predetta","Reale","Scarto","z pred.","Trend"].map(h=>(<th key={h} style={{color:C.dim,padding:"4px 8px",textAlign:"center",borderBottom:`1px solid ${C.border}`,fontWeight:700}}>{h}</th>))}</tr></thead>
+            <tbody>{storicoPred.map((p,i)=>{const scarto=p.scarto;const col=scarto===null?"#555":Math.abs(scarto)<=20?C.green:Math.abs(scarto)<=40?C.orange:C.red;return(<tr key={i} style={{background:i%2===0?"#080816":"#0a0a18"}}>
+              <td style={{color:ACCENT,padding:"5px 8px",textAlign:"center",fontFamily:"monospace"}}>#{p.concorso||"—"}</td> onClick={()=>setKBand(b.k)} style={{cursor:"pointer",display:"flex",gap:10,alignItems:"center",padding:"7px 10px",borderRadius:8,background:kBand===b.k?`${ACCENT}0a`:C.card,border:`1px solid ${kBand===b.k?`${ACCENT}44`:C.border}`}}>
           <span style={{color:ACCENT,fontFamily:"monospace",fontSize:12,minWidth:36}}>±{b.k}σ</span>
           <div style={{flex:1}}><div style={{background:"#0a0a18",borderRadius:3,height:5,overflow:"hidden"}}><div style={{background:C.teal,height:"100%",width:`${b.inA/series.length*100}%`}}/></div><span style={{color:C.teal,fontSize:9}}>[{b.loA}–{b.hiA}]: {b.inA}/{series.length} ({(b.inA/series.length*100).toFixed(0)}%)</span></div>
         </div>))}
@@ -1727,6 +1764,29 @@ function TabEstrazioni({onUpdate}){
     setSavingToDb(false);
     const updated=[...saved,newDraw].sort((a,b)=>(a.n||0)-(b.n||0));
     persist(updated);
+    // Salva predizione corrente prima di aggiornare i draw
+    try{
+      const allForPred=[...allDraws];
+      if(allForPred.length>=6){
+        const lstm=computeLSTM(allForPred);
+        const reg=computeRegression(allForPred);
+        const combined=Math.round(lstm.predictedSum*0.40+reg.predicted*0.35+reg.wma*0.25);
+        const zPred=zOf(combined,MU_TEO,SIGMA_TEO);
+        const confidence=Math.round(Math.sqrt(allForPred.map(d=>sm(d.nums)).reduce((a,s,i,arr)=>a+(s-arr.reduce((x,y)=>x+y,0)/arr.length)**2,0)/allForPred.length)*0.6);
+        await supabase.from("predizioni").insert({
+          lotteria:"superenalotto",concorso:n,
+          data_predizione:dateIso,
+          somma_predetta:combined,
+          somma_reale:sm(newDraw.nums),
+          lstm:lstm.predictedSum,
+          regressione:reg.predicted,
+          wma:Math.round(reg.wma),
+          trend:lstm.currentTrend,
+          z_predetto:parseFloat(zPred.toFixed(3)),
+          scarto:sm(newDraw.nums)-combined,
+        });
+      }
+    }catch(err){console.error("Predizione save error:",err);}
     setConcorso("");setDate("");setNums(Array(PICK).fill(""));setJollyInput("");setSuperstarInput("");
     setTimeout(()=>setSuccess(""),4000);
   };
