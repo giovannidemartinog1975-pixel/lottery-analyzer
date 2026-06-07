@@ -285,6 +285,7 @@ function TabBanda(){
         </table></div>
       </div>)}
     </div>
+    </div>
     );
 }
 
