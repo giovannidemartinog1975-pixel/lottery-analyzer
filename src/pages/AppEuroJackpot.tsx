@@ -685,7 +685,7 @@ function TabBiglietti(){
       <p style={{color:C.dim,fontSize:11,marginBottom:16,lineHeight:1.7}}>{tickets.length} biglietti · confronto automatico con {allDraws.length} estrazioni.</p>
       {tickets.length===0&&(<div style={{textAlign:"center",color:C.dim,padding:"28px 0",fontSize:13,background:C.card,border:`1px solid ${C.border}`,borderRadius:12}}>Nessun biglietto.<br/><span style={{fontSize:11}}>Genera nel tab 🎯 e premi 💾 Salva.</span></div>)}
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {[...tickets].reverse().map(ticket=>{
+        {[...tickets].sort((a,b)=>b.id-a.id).map(ticket=>{
           const results=getResults(ticket);const bestPts=results.length?Math.max(...results.map(r=>r.pts)):0;
           const bestCol=PRIZE_COLORS[Math.min(bestPts,5)]||C.dim;const isOpen=expanded===ticket.id;const pendingDel=confirmDel===ticket.id;
           return(<div key={ticket.id} style={{background:C.card,border:`2px solid ${pendingDel?"#C94040":bestPts>=2?bestCol:C.border}`,borderRadius:12,overflow:"hidden"}}>

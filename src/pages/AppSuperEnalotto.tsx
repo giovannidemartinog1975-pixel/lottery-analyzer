@@ -2775,7 +2775,7 @@ function TabBiglietti(){
         </div>
       )}
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {tickets.map(ticket=>{
+        {[...tickets].sort((a,b)=>b.id-a.id).map(ticket=>{
           const results=getResults(ticket);
           const bestPts=results.length?Math.max(...results.map(r=>r.pts)):0;
           const bestCol=PRIZE_COLORS[Math.min(bestPts,6)]||C.dim;
