@@ -1316,6 +1316,193 @@ function TabAnalisiAvanzata(){
     </div>
   );
 }
+function TabPredittivoEJ() {
+  const allDraws=useDraws();
+  const series=useMemo(()=>buildSeries(allDraws),[allDraws]);
+  const sums=series.map(d=>d.sum);
+  const muReale=avg(sums),sigmaReale=std(sums);
+  const [computed,setComputed]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [qty,setQty]=useState(5);
+  const [sestine,setSestine]=useState([]);
+  const [genLoading,setGenLoading]=useState(false);
+  const [selBonus,setSelBonus]=useState({});
+  const [savedIds,setSavedIds]=useState(new Set());
+
+  const bonusAffinita=useMemo(()=>{
+    const bf={};allDraws.forEach(d=>(d.bonus||[]).forEach(b=>{bf[b]=(bf[b]||0)+1;}));
+    const tot=Object.values(bf).reduce((s,v)=>s+v,0);
+    return Array.from({length:BONUS_POOL},(_,i)=>i+1).map(n=>{
+      const f=bf[n]||0;let rit=allDraws.length;
+      for(let i=allDraws.length-1;i>=0;i--){if((allDraws[i].bonus||[]).includes(n)){rit=allDraws.length-1-i;break;}}
+      return{num:n,f,rit,score:(f/Math.max(tot,1))*0.6+(rit/allDraws.length)*0.4,pct:tot?Math.round(f/tot*100):0};
+    }).sort((a,b)=>b.score-a.score);
+  },[allDraws]);
+
+  function computeSpectralEJ(draws){
+    const allSums=draws.map(d=>d.nums.reduce((a,b)=>a+b,0));
+    const mu=allSums.reduce((a,b)=>a+b,0)/allSums.length;
+    const centered=allSums.map(s=>s-mu);
+    const N=centered.length;
+    const periods=[2,3,5,7,10,13,17,20,25,30];
+    const spectral=periods.map(period=>{
+      let re=0,im=0;
+      centered.forEach((v,i)=>{re+=v*Math.cos(2*Math.PI*i/period);im+=v*Math.sin(2*Math.PI*i/period);});
+      const power=Math.sqrt(re*re+im*im)/N;
+      const posInCycle=((N-1)%period)/period;
+      return{period,power:parseFloat(power.toFixed(2)),posInCycle:parseFloat(posInCycle.toFixed(2))};
+    }).sort((a,b)=>b.power-a.power);
+    return{spectral,dominant:spectral[0]};
+  }
+
+  const esegui=()=>{
+    setLoading(true);setSestine([]);
+    setTimeout(()=>{
+      const pairs=computePairCorrelationsEJ(allDraws);
+      const lstm=computeLSTMEJ(allDraws);
+      const regression=computeRegressionEJ(allDraws);
+      const spectral=computeSpectralEJ(allDraws);
+      const ensemble=computeEnsemblePredictiveEJ(allDraws,muReale,sigmaReale);
+      setComputed({pairs,lstm,regression,spectral,ensemble});
+      setLoading(false);
+    },150);
+  };
+
+  const genera=()=>{
+    if(!computed)return;
+    setGenLoading(true);setSestine([]);setSavedIds(new Set());
+    setTimeout(()=>{
+      const loB=computed.regression.predictedRange.lo;
+      const hiB=computed.regression.predictedRange.hi;
+      const rng=mkRng(Date.now());
+      const pool=computed.ensemble.map(s=>s.num);
+      const weights=computed.ensemble.map(s=>Math.max(0.05,(s.ensemble/100)+0.5));
+      const totalW=weights.reduce((a,b)=>a+b,0);
+      const cumW=[];let acc=0;weights.forEach(w=>{acc+=w;cumW.push(acc/totalW);});
+      function pickW(){const r=rng();for(let i=0;i<cumW.length;i++)if(r<=cumW[i])return pool[i];return pool[pool.length-1];}
+      const found=[];let sc=0;
+      while(found.length<qty&&sc<3000000){
+        sc++;const nums=new Set();let att=0;
+        while(nums.size<PICK&&att<200){nums.add(pickW());att++;}
+        if(nums.size<PICK)continue;
+        const arr=[...nums].sort((a,b)=>a-b);
+        const s=arr.reduce((a,b)=>a+b,0);
+        if(s<loB||s>hiB)continue;
+        const key=arr.join(",");
+        if(found.some(f=>f.nums.join(",")===key))continue;
+        const predScore=arr.reduce((a,n)=>{const e=computed.ensemble.find(x=>x.num===n);return a+(e?e.ensemble:0);},0)/arr.length;
+        const pairData=computePairCorrelationsEJ(allDraws);
+        let pairBonus=0;
+        for(let i=0;i<arr.length;i++)for(let j=i+1;j<arr.length;j++){const p=pairData.topPairs.find(x=>x.nums[0]===arr[i]&&x.nums[1]===arr[j]);if(p)pairBonus+=p.z;}
+        const evens=arr.filter(n=>n%2===0).length;
+        found.push({nums:arr,sum:s,evens,odds:PICK-evens,predScore:parseFloat(predScore.toFixed(1)),pairBonus:parseFloat(pairBonus.toFixed(2)),zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2)});
+      }
+      setSestine(found.sort((a,b)=>b.predScore-a.predScore));
+      setGenLoading(false);
+    },100);
+  };
+
+  const salvaBiglietto=async(r,idx)=>{
+    const bonus=selBonus[idx]||bonusAffinita.slice(0,2).map(b=>b.num);
+    const ticket={id:Date.now()+idx,nums:r.nums,bonus,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:"predittivo",sum:r.sum};
+    await salvaTicketEJ(ticket);
+    setSavedIds(prev=>new Set([...prev,idx]));
+    alert(`✅ Salvata!\n${r.nums.join("-")} | EN:${bonus?.join("-")||"—"}`);
+  };
+
+  const PUR="#e879f9";
+
+  return(
+    <div>
+      <h2 style={{color:PUR,fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>🔬 Motore Predittivo v2</h2>
+      <div style={{background:"#1a001a",border:`1px solid ${PUR}33`,borderRadius:10,padding:12,marginBottom:14,fontSize:10,color:`${PUR}99`,lineHeight:1.7}}>
+        Ensemble 5 modelli: <strong style={{color:PUR}}>Correlazioni Coppie</strong> · <strong style={{color:PUR}}>LSTM</strong> · <strong style={{color:PUR}}>Regressione</strong> · <strong style={{color:PUR}}>Spettrale FFT</strong> · <strong style={{color:PUR}}>Bayesiano+Ciclico</strong>.
+      </div>
+      <button onClick={esegui} disabled={loading} style={{width:"100%",padding:"13px",background:loading?"#1a001a":`linear-gradient(135deg,${PUR},#9333ea)`,color:loading?"#555":"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:900,cursor:loading?"not-allowed":"pointer",fontFamily:"Georgia,serif",marginBottom:16}}>
+        {loading?"⏳ Calcolo modelli...":"🔬 Calcola Modelli Predittivi"}
+      </button>
+      {computed&&(<>
+        <div style={{background:C.card,border:`1px solid ${PUR}33`,borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:PUR,fontWeight:700,fontSize:13,marginBottom:10}}>① Predizione Somma</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,marginBottom:12}}>
+            {[{l:"LSTM",v:computed.lstm.predictedSum,c:PUR,s:`[${computed.lstm.predictedRange.lo}–${computed.lstm.predictedRange.hi}]`},{l:"Regressione",v:computed.regression.predicted,c:C.orange,s:`[${computed.regression.predictedRange.lo}–${computed.regression.predictedRange.hi}]`},{l:"WMA",v:computed.regression.wma,c:ACCENT,s:`μ=${computed.regression.muAll}`},{l:"Trend",v:(computed.lstm.currentTrend>=0?"+":"")+computed.lstm.currentTrend,c:computed.lstm.currentTrend>0?C.orange:C.teal,s:"per estrazione"}].map(x=>(<div key={x.l} style={{background:"#0a001a",borderRadius:8,padding:10,textAlign:"center",border:`1px solid ${PUR}33`}}><div style={{color:C.dim,fontSize:9}}>{x.l}</div><div style={{color:x.c,fontFamily:"monospace",fontSize:16,fontWeight:900}}>{x.v}</div><div style={{color:C.dim,fontSize:9}}>{x.s}</div></div>))}
+          </div>
+        </div>
+        <div style={{background:C.card,border:`1px solid ${PUR}33`,borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:PUR,fontWeight:700,fontSize:13,marginBottom:10}}>② Analisi Spettrale</div>
+          <div style={{color:C.dim,fontSize:10,marginBottom:8}}>Ciclo dominante: ogni <strong style={{color:PUR}}>{computed.spectral.dominant.period}</strong> estrazioni · posizione: <strong style={{color:computed.spectral.dominant.posInCycle>0.7?C.orange:C.teal}}>{(computed.spectral.dominant.posInCycle*100).toFixed(0)}%</strong></div>
+          {computed.spectral.spectral.slice(0,5).map(s=>{const col=s.period===computed.spectral.dominant.period?PUR:C.dim;return(<div key={s.period} style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><span style={{color:col,fontFamily:"monospace",fontSize:10,minWidth:65}}>ciclo {s.period}est.</span><div style={{flex:1,background:"#0a0a18",borderRadius:3,height:5,overflow:"hidden"}}><div style={{background:col,height:"100%",width:`${(s.power/computed.spectral.spectral[0].power)*100}%`}}/></div><span style={{color:col,fontSize:9,minWidth:28}}>{s.power}</span></div>);})}
+        </div>
+        <div style={{background:C.card,border:`1px solid ${PUR}33`,borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:PUR,fontWeight:700,fontSize:13,marginBottom:6}}>③ Correlazioni Coppie Top 8</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:6}}>
+            {computed.pairs.topPairs.slice(0,8).map(p=>{const col=p.z>3?C.red:p.z>2?C.orange:C.teal;return(<div key={p.pair} style={{background:"#080816",border:`1px solid ${col}33`,borderRadius:8,padding:"8px 10px"}}><div style={{display:"flex",gap:4,marginBottom:4}}>{p.nums.map(n=><Ball key={n} num={n} color={col} size={24}/>)}</div><div style={{color:col,fontFamily:"monospace",fontSize:10,fontWeight:700}}>{p.count}x z={p.z.toFixed(1)}</div></div>);})}
+          </div>
+        </div>
+        <div style={{background:C.card,border:`1px solid ${PUR}33`,borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:PUR,fontWeight:700,fontSize:13,marginBottom:6}}>④ Ensemble Score Top 15</div>
+          <div style={{color:C.dim,fontSize:9,marginBottom:8}}>Cicli 25% · Bayesiano 20% · Ritardo 20% · Correlazioni 20% · LSTM 15%</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(100px,1fr))",gap:6}}>
+            {computed.ensemble.slice(0,15).map((s,i)=>{const col=i<5?"#FFD700":i<10?C.orange:PUR;return(<div key={s.num} style={{background:"#080816",border:`1px solid ${col}33`,borderRadius:8,padding:"7px 8px"}}><div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}><Ball num={s.num} color={col} size={24} glow={i<5}/><div><div style={{color:col,fontFamily:"monospace",fontSize:12,fontWeight:900}}>{s.ensemble}</div><div style={{color:C.dim,fontSize:7}}>ensemble</div></div></div>{[{l:"c",v:s.cycleScore,c:"#22d3ee"},{l:"b",v:s.bayesScore,c:C.purple},{l:"r",v:s.ritScore,c:C.teal},{l:"cr",v:s.corrScore,c:C.orange}].map(row=>(<div key={row.l} style={{display:"flex",gap:3,alignItems:"center",marginBottom:1}}><span style={{color:C.dim,fontSize:7,width:10}}>{row.l}</span><div style={{flex:1,background:"#0a0a18",borderRadius:2,height:3,overflow:"hidden"}}><div style={{background:row.c,height:"100%",width:`${Math.min(row.v,100)}%`}}/></div></div>))}<div style={{color:C.dim,fontSize:7,marginTop:2}}>rit:{s.rit}</div></div>);})}
+          </div>
+        </div>
+        <div style={{background:"#0a001a",border:`2px solid ${PUR}44`,borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:PUR,fontWeight:700,fontSize:13,marginBottom:8}}>⑤ Genera Cinquine Predittive</div>
+          <div style={{color:C.dim,fontSize:10,marginBottom:10}}>Range: <strong style={{color:PUR}}>[{computed.regression.predictedRange.lo}–{computed.regression.predictedRange.hi}]</strong> · Trend: <strong style={{color:computed.lstm.currentTrend>0?C.orange:C.teal}}>{computed.lstm.currentTrend>0?"+":""}{computed.lstm.currentTrend}/est.</strong></div>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10,flexWrap:"wrap"}}>
+            <span style={{color:C.dim,fontSize:11}}>Combinazioni:</span>
+            {[1,3,5,10].map(n=>(<button key={n} onClick={()=>setQty(n)} style={{background:qty===n?`${PUR}22`:"transparent",color:qty===n?PUR:C.dim,border:`1px solid ${qty===n?PUR:C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>))}
+          </div>
+          <button onClick={genera} disabled={genLoading} style={{width:"100%",padding:"12px",background:genLoading?"#1a001a":`linear-gradient(135deg,${PUR},#9333ea)`,color:genLoading?"#555":"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:900,cursor:genLoading?"not-allowed":"pointer",fontFamily:"Georgia,serif",marginBottom:12}}>
+            {genLoading?"⏳ Generazione...":"🔬 Genera Cinquine Predittive"}
+          </button>
+          {sestine.length>0&&(
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {sestine.map((r,i)=>{
+                const isBest=i===0;
+                const top3Bonus=bonusAffinita.slice(0,3);
+                const chosenBonus=selBonus[i]||bonusAffinita.slice(0,2).map(b=>b.num);
+                const isSaved=savedIds.has(i);
+                return(
+                  <div key={i} style={{background:"#080816",border:`2px solid ${isBest?`${PUR}88`:`${PUR}22`}`,borderLeft:`4px solid ${PUR}`,borderRadius:12,padding:"14px",position:"relative"}}>
+                    {isBest&&<div style={{position:"absolute",top:-10,left:14,background:PUR,color:"#fff",fontSize:9,fontWeight:900,padding:"2px 10px",borderRadius:10}}>🏆 MIGLIORE</div>}
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+                      <span style={{color:PUR,fontFamily:"monospace",fontSize:11}}>#{i+1}</span>
+                      <span style={{background:`${PUR}22`,color:PUR,borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700}}>Score {r.predScore}</span>
+                      {r.pairBonus>0&&<span style={{background:`${C.orange}22`,color:C.orange,borderRadius:6,padding:"2px 8px",fontSize:10}}>+coppie {r.pairBonus.toFixed(1)}</span>}
+                    </div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+                      {r.nums.map(n=>{const rank=computed.ensemble.findIndex(x=>x.num===n);const col=rank<5?"#FFD700":rank<10?C.orange:PUR;return <Ball key={n} num={n} color={col} size={38} glow={rank<5}/>;})}</div>
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
+                      <span style={{background:`${PUR}22`,color:PUR,borderRadius:5,padding:"2px 8px",fontSize:10,fontFamily:"monospace",fontWeight:700}}>Σ {r.sum}</span>
+                      <span style={{background:"#12122a",color:C.dim,borderRadius:5,padding:"2px 8px",fontSize:10}}>{r.evens}P–{r.odds}D</span>
+                      <span style={{background:"#12122a",color:Math.abs(parseFloat(r.zScore))<1?C.green:C.orange,borderRadius:5,padding:"2px 8px",fontSize:10}}>z={r.zScore}</span>
+                    </div>
+                    <div style={{background:"#0a0810",border:"1px solid #FFD70022",borderRadius:10,padding:10,marginBottom:10}}>
+                      <div style={{color:"#FFD700",fontSize:10,fontWeight:700,marginBottom:8}}>⭐ Euro Numeri consigliati (2)</div>
+                      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                        {top3Bonus.map((b,bi)=>{const isCho=(chosenBonus||[]).includes(b.num);return(<div key={b.num} onClick={()=>setSelBonus(prev=>{const cur=prev[i]||[];const next=cur.includes(b.num)?cur.filter(x=>x!==b.num):cur.length<BONUS_COUNT?[...cur,b.num]:cur;return{...prev,[i]:next};})} style={{textAlign:"center",cursor:"pointer",padding:"5px 6px",background:isCho?"#FFD70018":"#0e0e1c",border:`2px solid ${isCho?"#FFD700":"#2a2a3a"}`,borderRadius:8,boxShadow:isCho?"0 0 10px #FFD70044":"none"}}><Ball num={b.num} size={26} gold={isCho} color={isCho?"#FFD700":"#888"} glow={isCho}/><div style={{color:isCho?"#FFD700":bi===0?"#E8B84B":"#888",fontSize:9,marginTop:2}}>{b.pct}%</div></div>);})}
+                        <div style={{paddingLeft:8,borderLeft:"1px solid #222",display:"flex",gap:4}}>
+                          {(chosenBonus||[]).map(n=><Ball key={n} num={n} size={26} gold glow/>)}
+                        </div>
+                      </div>
+                    </div>
+                    <button onClick={()=>salvaBiglietto(r,i)} disabled={isSaved} style={{width:"100%",padding:"10px",background:isSaved?`${C.green}22`:`linear-gradient(135deg,${PUR},#9333ea)`,color:isSaved?C.green:"#fff",border:`2px solid ${isSaved?C.green:PUR}`,borderRadius:10,fontSize:13,fontWeight:700,cursor:isSaved?"default":"pointer",fontFamily:"inherit"}}>
+                      {isSaved?"✅ Salvata in Biglietti":"💾 Salva in Biglietti"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div style={{background:"#1a001a",border:`1px solid ${PUR}22`,borderRadius:8,padding:10,fontSize:9,color:`${PUR}55`,lineHeight:1.8}}>
+          Modello predittivo ensemble v2. Nessun potere predittivo garantito. Riesegui dopo ogni nuova estrazione.
+        </div>
+      </>)}
+    </div>
+  );
+}
 // ═══════════════════════════════════════════════════════════════
 // AGGIUNTE AppEuroJackpot.tsx
 // ═══════════════════════════════════════════════════════════════
@@ -1673,6 +1860,7 @@ const TABS=[
   {id:"generatore",icon:"🎯",label:"Generatore"},
   {id:"suggeritore",icon:"🔮",label:"Suggeritore"},
   {id:"analisi",icon:"🧬",label:"Analisi"},
+  {id:"predittivo",icon:"🔬",label:"Predittivo"},
   {id:"unificato",icon:"⭐",label:"Unificato"},
   {id:"confronto",icon:"🔁",label:"Confronto"},
   {id:"estrazioni",icon:"📥",label:"Estrazioni"},
@@ -1727,6 +1915,7 @@ export default function App(){
         <div style={{display:tab==="generatore"?"block":"none"}}><TabGeneratore/></div>
         <div style={{display:tab==="suggeritore"?"block":"none"}}><TabSuggeritore/></div>
         <div style={{display:tab==="analisi"?"block":"none"}}><TabAnalisiAvanzata/></div>
+        <div style={{display:tab==="predittivo"?"block":"none"}}><TabPredittivoEJ/></div>
         <div style={{display:tab==="unificato"?"block":"none"}}><TabGeneratoreUnificatoEJ/></div>
         <div style={{display:tab==="confronto"?"block":"none"}}><TabConfronto/></div>
         <div style={{display:tab==="estrazioni"?"block":"none"}}><TabEstrazioni onUpdate={handleUpdate}/></div>
