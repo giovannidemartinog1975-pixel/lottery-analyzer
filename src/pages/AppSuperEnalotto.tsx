@@ -3094,7 +3094,7 @@ export default function App(){
             <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:C.dim,fontSize:14}}>│</span>{last.jolly?<Ball num={last.jolly} color="#aaa" size={28}/>:null}<span style={{color:"#aaa",fontSize:9}}>J</span>{last.superstar?<Ball num={last.superstar} size={28} gold/>:null}<span style={{color:"#FFD700",fontSize:9}}>SS</span></div>
           </div>)}
         </div>
-        <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`,paddingTop:8}}>
+        <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`,paddingTop:8,background:C.bg}}>
           {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?`linear-gradient(135deg,${t.id==="biglietti"?C.purple:t.id==="suggeritore"?"#a78bfa":t.id==="predittivo"?"#e879f9":t.id==="unificato"?"#f59e0b":ACCENT},#2BA89A)`:"transparent",color:tab===t.id?"#fff":C.dim,border:tab===t.id?"none":`1px solid ${C.border}`,borderRadius:20,padding:"7px 10px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{t.icon} {t.label}</button>))}
         </div>
         <div style={{display:tab==="animazione"?"block":"none"}}><TabAnimazione/></div>
