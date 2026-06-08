@@ -3077,7 +3077,7 @@ export default function App(){
     <DrawsContext.Provider value={allDraws}>
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Courier New',monospace",color:C.text,paddingBottom:60}}>
       <div style={{maxWidth:780,margin:"0 auto",padding:"0 12px"}}>
-        <div style={{position:"sticky",top:0,zIndex:100,background:C.bg,padding:"8px 0 0",textAlign:"center"
+        <div style={{background:"linear-gradient(180deg,#0c0c1e 0%,transparent 100%)",padding:"16px 0 0",textAlign:"center",marginBottom:0}}>
           <div style={{display:"inline-flex",alignItems:"center",gap:10,marginBottom:6}}>
             <span style={{fontSize:26}}>🇮🇹</span>
             <h1 style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:22,margin:0,textShadow:`0 0 30px ${ACCENT}44`}}>SuperEnalotto</h1>
