@@ -3077,8 +3077,7 @@ export default function App(){
     <DrawsContext.Provider value={allDraws}>
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Courier New',monospace",color:C.text,paddingBottom:60}}>
       <div style={{maxWidth:780,margin:"0 auto",padding:"0 12px"}}>
-        <div style={{position:"sticky",top:0,zIndex:100,background:C.bg}}>
-        <div style={{padding:"16px 0 0",textAlign:"center",marginBottom:0}}>
+        <div style={{background:"linear-gradient(180deg,#0c0c1e 0%,transparent 100%)",padding:"16px 0 0",textAlign:"center",marginBottom:0}}>
           <div style={{display:"inline-flex",alignItems:"center",gap:10,marginBottom:6}}>
             <span style={{fontSize:26}}>🇮🇹</span>
             <h1 style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:22,margin:0,textShadow:`0 0 30px ${ACCENT}44`}}>SuperEnalotto</h1>
@@ -3090,12 +3089,12 @@ export default function App(){
             <span style={{color:C.dim}}>Storico: <strong style={{color:ACCENT}}>{allDraws.length} est.</strong></span>
             <span style={{color:C.dim}}>Jackpot: <strong style={{color:C.purple}}>{JACKPOT}</strong></span>
           </div>
-          {last&&(<div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+          {last&&(<div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
             {last.nums.map(n=><Ball key={n} num={n} color={ACCENT} size={32} glow/>)}
             <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:C.dim,fontSize:14}}>│</span>{last.jolly?<Ball num={last.jolly} color="#aaa" size={28}/>:null}<span style={{color:"#aaa",fontSize:9}}>J</span>{last.superstar?<Ball num={last.superstar} size={28} gold/>:null}<span style={{color:"#FFD700",fontSize:9}}>SS</span></div>
           </div>)}
         </div>
-        <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`,paddingTop:8}}>
+        <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:100,background:C.bg,paddingTop:8}}>
           {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?`linear-gradient(135deg,${t.id==="biglietti"?C.purple:t.id==="suggeritore"?"#a78bfa":t.id==="predittivo"?"#e879f9":t.id==="unificato"?"#f59e0b":ACCENT},#2BA89A)`:"transparent",color:tab===t.id?"#fff":C.dim,border:tab===t.id?"none":`1px solid ${C.border}`,borderRadius:20,padding:"7px 10px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{t.icon} {t.label}</button>))}
         </div>
         <div style={{display:tab==="animazione"?"block":"none"}}><TabAnimazione/></div>
