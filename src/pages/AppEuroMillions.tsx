@@ -84,7 +84,7 @@ function TabAnimazione(){
     const canvas=canvasRef.current;if(!canvas||!series.length)return;
     const ctx=canvas.getContext("2d"),dpr=window.devicePixelRatio||1,PAD={top:40,right:24,bottom:44,left:48};
     canvas.width=W*dpr;canvas.height=240*dpr;canvas.style.width=W+"px";canvas.style.height="240px";ctx.scale(dpr,dpr);
-    const CW=W-PAD.left-PAD.right,CH=240-PAD.top-PAD.bottom,visible=Math.min(Math.ceil(frame),total);
+    const CW=canvasW-PAD.left-PAD.right,CH=240-PAD.top-PAD.bottom,visible=Math.min(Math.ceil(frame),total);
     const toX=i=>PAD.left+(i/(Math.max(total-1,1)))*CW,toY=v=>PAD.top+(1-(v-20)/(220-20))*CH;
     ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,240);
     [20,50,80,110,127.5,150,180,210].forEach(v=>{const y=toY(v),isMu=v===127.5;ctx.beginPath();ctx.moveTo(PAD.left,y);ctx.lineTo(PAD.left+CW,y);ctx.setLineDash(isMu?[6,3]:[2,6]);ctx.strokeStyle=isMu?`${ACCENT}44`:"rgba(255,255,255,0.05)";ctx.lineWidth=isMu?1.5:1;ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=isMu?`${ACCENT}99`:"rgba(255,255,255,0.3)";ctx.font=`${isMu?"bold ":""}9px monospace`;ctx.textAlign="right";ctx.fillText(isMu?"127.5":Math.round(v),PAD.left-4,y+3);});
@@ -107,8 +107,9 @@ function TabAnimazione(){
         <KpiCard label="μ reale" value={muReale.toFixed(1)} color={ACCENT} sub={`Δ ${(muReale-MU_TEO).toFixed(1)}`}/>
         <KpiCard label="z-score" value={cur.zScore?.toFixed(2)} color={Math.abs(cur.zScore)<1?C.green:Math.abs(cur.zScore)<2?C.orange:C.red}/>
       </div>
-      <div style={{borderRadius:10,overflow:"hidden",border:"1px solid #1a1a2e",marginBottom:10}}>
-        <canvas ref={canvasRef} style={{display:"block",cursor:"crosshair",width:"100%"}}/>
+  <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}><span style={{color:C.dim,fontSize:10}}>Zoom:</span>{[4,6,8,12,16].map(p=>(<button key={p} onClick={()=>setPxPerPoint(p)} style={{background:pxPerPoint===p?`${ACCENT}22`:"transparent",color:pxPerPoint===p?ACCENT:C.dim,border:`1px solid ${pxPerPoint===p?ACCENT:C.border}`,borderRadius:6,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{p===4?"Min":p===6?"S":p===8?"M":p===12?"L":"Max"}</button>))}<span style={{color:C.dim,fontSize:9,marginLeft:"auto"}}>{total} est.</span></div>
+      <div style={{borderRadius:10,overflow:"hidden",border:"1px solid #1a1a2e",marginBottom:10,overflowX:"auto"}}>    <div style={{borderRadius:10,overflow:"hidden",border:"1px solid #1a1a2e",marginBottom:10}}>
+        <canvas ref={canvasRef} style={{display:"block",cursor:"crosshair"}}/>
       </div>
       <input type="range" min={1} max={total} step={0.05} value={frame} onChange={e=>{cancelAnimationFrame(rafRef.current);setPlaying(false);frameRef.current=+e.target.value;setFrame(+e.target.value);}} style={{width:"100%",accentColor:ACCENT,cursor:"pointer",marginBottom:8}}/>
       <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginBottom:12}}>
