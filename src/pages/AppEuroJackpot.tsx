@@ -1888,7 +1888,7 @@ export default function App(){
   return(
     <DrawsContext.Provider value={allDraws}>
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Courier New',monospace",color:C.text,paddingBottom:60}}>
-      <div style={{maxWidth:780,margin:"0 auto",padding:"0 12px"}}>
+      <div style={{maxWidth:780,margin:"0 auto",padding:"0 12px"}}><div style={{position:"sticky",top:0,zIndex:100,background:C.bg}}>
         <div style={{background:"linear-gradient(180deg,#0c0c1e 0%,transparent 100%)",padding:"16px 0 0",textAlign:"center",marginBottom:0}}>
           <div style={{display:"inline-flex",alignItems:"center",gap:10,marginBottom:6}}>
             <span style={{fontSize:26}}>🌍</span>
@@ -1906,9 +1906,9 @@ export default function App(){
             <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:C.dim,fontSize:14}}>│</span>{(last.bonus||[]).map(b=><Ball key={b} num={b} size={28} gold/>)}<span style={{color:"#FFD700",fontSize:9}}>EN</span></div>
           </div>)}
         </div>
-        <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:100,background:C.bg,paddingTop:8}}>
+        <div style={{display:"flex",gap:2,marginBottom:16,overflowX:"auto",paddingBottom:4,borderBottom:`1px solid ${C.border}`,paddingTop:8}}>
           {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?`linear-gradient(135deg,${t.id==="biglietti"?C.purple:t.id==="suggeritore"?"#a78bfa":t.id==="unificato"?"#f59e0b":ACCENT},#2BA89A)`:"transparent",color:tab===t.id?"#fff":C.dim,border:tab===t.id?"none":`1px solid ${C.border}`,borderRadius:20,padding:"7px 10px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{t.icon} {t.label}</button>))}
-        </div>
+        </div></div>
         <div style={{display:tab==="animazione"?"block":"none"}}><TabAnimazione/></div>
         <div style={{display:tab==="segnali"?"block":"none"}}><TabSegnali/></div>
         <div style={{display:tab==="banda"?"block":"none"}}><TabBanda/></div>
