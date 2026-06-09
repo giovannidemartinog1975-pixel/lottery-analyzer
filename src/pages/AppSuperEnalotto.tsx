@@ -2625,7 +2625,7 @@ function TabGeneratoreUnificato() {
       {results.length>0&&(
         <>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
-            <span style={{color:C.dim,fontSize:11}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate · pesi: 🧬{pAdv}% 🔬{pEns}% 🔗{pPair}% 📐{pDist}%</span>{cicloRipartito&&<span style={{color:C.orange,marginLeft:8,fontSize:11}}>🔄 Ciclo ripartito — combinazioni esaurite</span>}
+            <span style={{color:C.dim,fontSize:11}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate · pesi: 🧬{pAdv}% 🔬{pEns}% 🔗{pPair}% 📐{pDist}%</span>{cicloRipartito&&<span style={{color:C.orange,marginLeft:8,fontSize:11}}>🔄 Ciclo ripartito — {seenCombos.size} combinazioni esaurite, si ricomincia</span>}
             <HelpBtn title="Score finale" text={HELP.score}/>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
