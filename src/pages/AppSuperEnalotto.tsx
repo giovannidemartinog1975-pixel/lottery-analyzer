@@ -2386,6 +2386,8 @@ function TabGeneratoreUnificato() {
   const [selSS,setSelSS]=useState(()=>{try{const s=sessionStorage.getItem("se_unif_selss");return s?JSON.parse(s):{};}catch{return {};}});
   const [savedIds,setSavedIds]=useState(new Set());
   const [progress, setProgress] = useState("");
+  const [seenCombos, setSeenCombos] = useState<Set<string>>(new Set());
+  const [cicloRipartito, setCicloRipartito] = useState(false);
 
   const GEN_COLOR = "#f59e0b";
 
@@ -2411,6 +2413,7 @@ function TabGeneratoreUnificato() {
 
   const genera = () => {
     setLoading(true); setResults([]); setSelSS({}); setSavedIds(new Set());
+    setCicloRipartito(false);
     setProgress("⚙️ Calcolo modelli...");
 
     setTimeout(() => {
@@ -2506,7 +2509,18 @@ function TabGeneratoreUnificato() {
               topSS:getSSSuggestions(allDraws,s,sigmaReale)[0]?.num||null,
             };
           });
-          const finalResults=scored.sort((a,b)=>b.total-a.total).slice(0,qty);
+          const allSorted=scored.sort((a,b)=>b.total-a.total);
+          const nuovi=allSorted.filter(r=>!seenCombos.has(r.nums.join(",")));
+          let finalResults=nuovi.slice(0,qty);
+          let ripartito=false;
+          if(finalResults.length===0){
+            finalResults=allSorted.slice(0,qty);
+            setSeenCombos(new Set(finalResults.map(r=>r.nums.join(","))));
+            ripartito=true;
+          } else {
+            setSeenCombos(prev=>new Set([...prev,...finalResults.map(r=>r.nums.join(","))]));
+          }
+          setCicloRipartito(ripartito);
           try{sessionStorage.setItem("se_unif_results",JSON.stringify(finalResults));}catch{}
           try{sessionStorage.setItem("se_unif_adv",JSON.stringify(advScores));}catch{}
           setResults(finalResults);
@@ -2611,7 +2625,7 @@ function TabGeneratoreUnificato() {
       {results.length>0&&(
         <>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
-            <span style={{color:C.dim,fontSize:11}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate · pesi: 🧬{pAdv}% 🔬{pEns}% 🔗{pPair}% 📐{pDist}%</span>
+            <span style={{color:C.dim,fontSize:11}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate · pesi: 🧬{pAdv}% 🔬{pEns}% 🔗{pPair}% 📐{pDist}%</span>{cicloRipartito&&<span style={{color:C.orange,marginLeft:8,fontSize:11}}>🔄 Ciclo ripartito — combinazioni esaurite</span>}
             <HelpBtn title="Score finale" text={HELP.score}/>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
