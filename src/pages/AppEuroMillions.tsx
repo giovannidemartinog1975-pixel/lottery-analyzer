@@ -1473,6 +1473,8 @@ function TabGeneratoreUnificatoEM() {
   const [selStelle,setSelStelle]=useState({});
   const [savedIds,setSavedIds]=useState(new Set());
   const [progress,setProgress]=useState("");
+  const [seenCombos,setSeenCombos]=useState<Set<string>>(new Set());
+  const [cicloRipartito,setCicloRipartito]=useState(false);
 
   const GEN_COLOR="#f59e0b";
   const totalW=wAdv+wEns+wPair+wDist;
@@ -1495,6 +1497,7 @@ function TabGeneratoreUnificatoEM() {
 
   const genera=()=>{
     setLoading(true);setResults([]);setSelStelle({});setSavedIds(new Set());
+    setCicloRipartito(false);
     setProgress("⚙️ Calcolo modelli...");
     setTimeout(()=>{
       const advScores=computeAdvancedScoresEM(allDraws,muReale,sigmaReale);
@@ -1549,7 +1552,14 @@ function TabGeneratoreUnificatoEM() {
             const topStelle=stelleAffinita.slice(0,2).map(s=>s.num);
             return {...c,sum:s,total:parseFloat(total.toFixed(1)),advS:parseFloat(advS.toFixed(1)),ensS:parseFloat(ensS.toFixed(1)),pairS:parseFloat(pairS.toFixed(1)),distS:parseFloat(distS.toFixed(1)),zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2),evens,odds:PICK-evens,ritMedio,pairBonus:parseFloat(pairB.toFixed(2)),topStelle};
           });
-          setResults(scored.sort((a,b)=>b.total-a.total).slice(0,qty));
+          const allSorted=scored.sort((a,b)=>b.total-a.total);
+          const nuovi=allSorted.filter(r=>!seenCombos.has(r.nums.join(",")));
+          let finalResults=nuovi.slice(0,qty);
+          let ripartito=false;
+          if(finalResults.length===0){finalResults=allSorted.slice(0,qty);setSeenCombos(new Set(finalResults.map(r=>r.nums.join(","))));ripartito=true;}
+          else{setSeenCombos(prev=>new Set([...prev,...finalResults.map(r=>r.nums.join(","))]));}
+          setCicloRipartito(ripartito);
+          setResults(finalResults);
           setProgress("");setLoading(false);
         },50);
       },50);
@@ -1605,7 +1615,7 @@ function TabGeneratoreUnificatoEM() {
       </button>
       {results.length>0&&(
         <>
-          <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate</div>
+          <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate{cicloRipartito&&<span style={{color:C.orange,marginLeft:8}}>🔄 Ciclo ripartito — {seenCombos.size} combinazioni esaurite, si ricomincia</span>}</div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             {results.map((r,i)=>{
               const isBest=i===0;
