@@ -2522,7 +2522,7 @@ function TabGeneratoreUnificato() {
           } else {
             setSeenCombos(prev=>new Set([...prev,...finalResults.map(r=>r.nums.join(","))]));
           }
-          setCicloRipartito(ripartito);
+if(!ripartito) setCicloRipartito(ripartito);
           try{sessionStorage.setItem("se_unif_results",JSON.stringify(finalResults));}catch{}
           try{sessionStorage.setItem("se_unif_adv",JSON.stringify(advScores));}catch{}
           setResults(finalResults);
