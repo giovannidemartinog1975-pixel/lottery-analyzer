@@ -2387,7 +2387,7 @@ function TabGeneratoreUnificato() {
   const [savedIds,setSavedIds]=useState(new Set());
   const [progress, setProgress] = useState("");
   const [seenCombos, setSeenCombos] = useState<Set<string>>(new Set());
-  const [cicloRipartito, setCicloRipartito] = useState(false);
+  const [cicloRipartito, setCicloRipartito] = useState<false|number>(false);
 
   const GEN_COLOR = "#f59e0b";
 
@@ -2514,9 +2514,11 @@ function TabGeneratoreUnificato() {
           let finalResults=nuovi.slice(0,qty);
           let ripartito=false;
           if(finalResults.length===0){
+            const totale=seenCombos.size;
             finalResults=allSorted.slice(0,qty);
             setSeenCombos(new Set(finalResults.map(r=>r.nums.join(","))));
             ripartito=true;
+            setCicloRipartito(totale);
           } else {
             setSeenCombos(prev=>new Set([...prev,...finalResults.map(r=>r.nums.join(","))]));
           }
@@ -2625,7 +2627,7 @@ function TabGeneratoreUnificato() {
       {results.length>0&&(
         <>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
-            <span style={{color:C.dim,fontSize:11}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate · pesi: 🧬{pAdv}% 🔬{pEns}% 🔗{pPair}% 📐{pDist}%</span>{cicloRipartito&&<span style={{color:C.orange,marginLeft:8,fontSize:11}}>🔄 Ciclo ripartito — {seenCombos.size} combinazioni uniche trovate con questi parametri, si ricomincia</span>}
+            <span style={{color:C.dim,fontSize:11}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate · pesi: 🧬{pAdv}% 🔬{pEns}% 🔗{pPair}% 📐{pDist}%</span>{cicloRipartito!==false&&<span style={{color:C.orange,marginLeft:8,fontSize:11}}>🔄 Ciclo ripartito — {cicloRipartito} combinazioni uniche trovate con questi parametri, si ricomincia</span>}
             <HelpBtn title="Score finale" text={HELP.score}/>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
