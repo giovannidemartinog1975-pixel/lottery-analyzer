@@ -1634,7 +1634,7 @@ function TabGeneratoreUnificatoEJ() {
   const [savedIds,setSavedIds]=useState(new Set());
   const [progress,setProgress]=useState("");
   const [seenCombos,setSeenCombos]=useState<Set<string>>(new Set());
-  const [cicloRipartito,setCicloRipartito]=useState(false);
+  const [cicloRipartito,setCicloRipartito]=useState<false|number>(false);
 
   const GEN_COLOR="#f59e0b";
   const totalW=wAdv+wEns+wPair+wDist;
@@ -1726,9 +1726,9 @@ function TabGeneratoreUnificatoEJ() {
           const nuovi=allSorted.filter(r=>!seenCombos.has(r.nums.join(",")));
           let finalResults=nuovi.slice(0,qty);
           let ripartito=false;
-          if(finalResults.length===0){finalResults=allSorted.slice(0,qty);setSeenCombos(new Set(finalResults.map(r=>r.nums.join(","))));ripartito=true;}
+          if(finalResults.length===0){const totale=seenCombos.size;finalResults=allSorted.slice(0,qty);setSeenCombos(new Set(finalResults.map(r=>r.nums.join(","))));ripartito=true;setCicloRipartito(totale);}
           else{setSeenCombos(prev=>new Set([...prev,...finalResults.map(r=>r.nums.join(","))]));}
-          setCicloRipartito(ripartito);
+          if(!ripartito) if(!ripartito) setCicloRipartito(ripartito);
           setResults(finalResults);
           setProgress("");setLoading(false);
         },50);
@@ -1793,7 +1793,7 @@ function TabGeneratoreUnificatoEJ() {
       </button>
       {results.length>0&&(
         <>
-          <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate{cicloRipartito&&<span style={{color:C.orange,marginLeft:8}}>🔄 Ciclo ripartito — {seenCombos.size} combinazioni uniche trovate con questi parametri, si ricomincia</span>}</div>
+          <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate{cicloRipartito!==false&&<span style={{color:C.orange,marginLeft:8}}>🔄 Ciclo ripartito — {cicloRipartito} combinazioni uniche trovate con questi parametri, si ricomincia</span>}</div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             {results.map((r,i)=>{
               const isBest=i===0;
