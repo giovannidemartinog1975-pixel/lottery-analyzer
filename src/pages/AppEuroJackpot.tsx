@@ -1793,7 +1793,7 @@ function TabGeneratoreUnificatoEJ() {
       </button>
       {results.length>0&&(
         <>
-          <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate{cicloRipartito&&<span style={{color:C.orange,marginLeft:8}}>🔄 Ciclo ripartito — {seenCombos.size} combinazioni esaurite, si ricomincia</span>}</div>
+          <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate{cicloRipartito&&<span style={{color:C.orange,marginLeft:8}}>🔄 Ciclo ripartito — {seenCombos.size} combinazioni uniche trovate con questi parametri, si ricomincia</span>}</div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             {results.map((r,i)=>{
               const isBest=i===0;
