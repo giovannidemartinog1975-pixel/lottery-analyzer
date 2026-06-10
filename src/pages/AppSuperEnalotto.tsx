@@ -1855,7 +1855,7 @@ function computePairCorrelations(draws) {
 
 // ─── LSTM SEMPLIFICATO ───────────────────────────────────────
 function computeLSTM(draws) {
-  const windowSize=5;
+  const windowSize=12;
   function features(nums){
     const s=nums.reduce((a,b)=>a+b,0);
     const e=nums.filter(n=>n%2===0).length;
@@ -1877,11 +1877,22 @@ function computeLSTM(draws) {
   const recent=draws.slice(-windowSize).map(d=>features(d.nums));
   const lastSums=recent.map(f=>f.sum);
   const currentTrend=(lastSums[lastSums.length-1]-lastSums[0])/(windowSize-1);
+  // Ritorno alla media — se somma recente è lontana da MU_TEO, correggi verso di essa
+  const lastSum=lastSums[lastSums.length-1];
+  const distanzaDaMedia=lastSum-MU_TEO;
+  const correzioneMean=distanzaDaMedia*0.15;
+  // Ciclo pari/dispari — analisi ultimi 10 pattern
+  const recentEvens=draws.slice(-10).map(d=>d.nums.filter(n=>n%2===0).length);
+  const avgEvens=recentEvens.reduce((a,b)=>a+b,0)/recentEvens.length;
+  const evensCorrection=(avgEvens-3)*2;
   const weightedPrediction=Math.round(
-    lastSums[lastSums.length-1]*0.4+
-    lastSums[lastSums.length-2]*0.3+
-    lastSums[lastSums.length-3]*0.2+
-    (lastSums[lastSums.length-1]+currentTrend)*0.1
+    lastSums[lastSums.length-1]*0.35+
+    lastSums[lastSums.length-2]*0.25+
+    lastSums[lastSums.length-3]*0.15+
+    lastSums[lastSums.length-4]*0.10+
+    (lastSums[lastSums.length-1]+currentTrend)*0.10-
+    correzioneMean*0.05+
+    evensCorrection
   );
   const errors=patterns.map(p=>Math.abs(p.predictedSum-p.actualSum));
   const avgError=errors.reduce((a,b)=>a+b,0)/errors.length;
@@ -1889,7 +1900,9 @@ function computeLSTM(draws) {
   return {
     currentTrend:parseFloat(currentTrend.toFixed(1)),
     predictedSum:weightedPrediction,
-    predictedRange:{lo:Math.round(weightedPrediction-25),hi:Math.round(weightedPrediction+25)},
+    predictedRange:{lo:Math.round(weightedPrediction-20),hi:Math.round(weightedPrediction+20)},
+    ritornoMedia:parseFloat(correzioneMean.toFixed(1)),
+    cicloPariDispari:parseFloat(avgEvens.toFixed(1)),
     avgError:parseFloat(avgError.toFixed(1)),
     evensTrend:parseFloat(evensTrend.toFixed(1)),
     lastSums,
@@ -1915,7 +1928,9 @@ function computeRegression(draws) {
   const sumX2=x30.reduce((a,_,i)=>a+i*i,0);
   const slope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
   const intercept=(sumY-slope*sumX)/n;
-  const predicted=Math.round(intercept+slope*n);
+  const predictedRaw=Math.round(intercept+slope*n);
+  // Ritorno alla media — correggi il 20% verso MU_TEO
+  const predicted=Math.round(predictedRaw*0.80+MU_TEO*0.20);
   return {
     muAll:parseFloat(muAll.toFixed(1)),
     sigmaAll:parseFloat(sigmaAll.toFixed(1)),
@@ -2373,6 +2388,7 @@ function TabGeneratoreUnificato() {
   const [qty, setQty] = useState(5);
   const [numCandidati, setNumCandidati] = useState(200);
   const [rangeMode, setRangeMode] = useState("adattivo");
+  const [filtroPD, setFiltroPD] = useState("qualsiasi");
   const [customLo, setCustomLo] = useState(Math.round(muReale - sigmaReale));
   const [customHi, setCustomHi] = useState(Math.round(muReale + sigmaReale));
   const [wAdv, setWAdv] = useState(40);
@@ -2425,8 +2441,13 @@ function TabGeneratoreUnificato() {
 
       setAdvScoresRef(advScores);
 
+      const predLSTM=computeLSTM(allDraws);
+      const predReg=computeRegression(allDraws);
       let loB, hiB;
-      if (rangeMode === "auto") {
+      if (rangeMode === "predittivo") {
+        loB=Math.min(predLSTM.predictedRange.lo,predReg.predictedRange.lo);
+        hiB=Math.max(predLSTM.predictedRange.hi,predReg.predictedRange.hi);
+      } else if (rangeMode === "auto") {
         loB = Math.min(Math.round(muReale - sigmaReale), regression.predictedRange.lo, lstm.predictedRange.lo);
         hiB = Math.max(Math.round(muReale + sigmaReale), regression.predictedRange.hi, lstm.predictedRange.hi);
       } else if (rangeMode === "adattivo") {
@@ -2565,9 +2586,10 @@ if(!ripartito) setCicloRipartito(ripartito);
             <HelpBtn title="Range somma" text={HELP.rangeSomma}/>
           </div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
-            {[{v:"auto",l:"Auto"},{v:"adattivo",l:`±1.5σ [${loAdattivo}–${hiAdattivo}]`},{v:"custom",l:"Custom"}].map(r=>(
+            {[{v:"auto",l:"Auto"},{v:"adattivo",l:`±1.5σ [${loAdattivo}–${hiAdattivo}]`},{v:"custom",l:"Custom"},{v:"predittivo",l:"🔮 Predittivo"}].map(r=>(
               <button key={r.v} onClick={()=>setRangeMode(r.v)} style={{background:rangeMode===r.v?`${GEN_COLOR}22`:"transparent",color:rangeMode===r.v?GEN_COLOR:C.dim,border:`1px solid ${rangeMode===r.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{r.l}</button>
             ))}
+            {rangeMode==="predittivo"&&(()=>{const pl=computeLSTM(allDraws);const pr=computeRegression(allDraws);const lo=Math.min(pl.predictedRange.lo,pr.predictedRange.lo);const hi=Math.max(pl.predictedRange.hi,pr.predictedRange.hi);return(<span style={{color:GEN_COLOR,fontSize:10,marginLeft:6,fontFamily:"monospace"}}>→ [{lo}–{hi}]</span>);})()}
           </div>
           {rangeMode==="custom"&&(<div style={{display:"flex",gap:8,alignItems:"center"}}>
             <div><div style={{color:C.dim,fontSize:9,marginBottom:2}}>Min</div><input type="number" value={customLo} onChange={e=>setCustomLo(+e.target.value)} style={{width:60,background:"#0a0a1c",color:GEN_COLOR,border:`1px solid ${GEN_COLOR}55`,borderRadius:6,padding:"4px 6px",fontSize:12,fontFamily:"monospace",outline:"none"}}/></div>
@@ -2614,6 +2636,14 @@ if(!ripartito) setCicloRipartito(ripartito);
         </div>
       </div>
 
+      <div style={{marginTop:10}}>
+          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Filtro Pari/Dispari</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[{v:"qualsiasi",l:"Qualsiasi"},{v:"piu_pari",l:"+ Pari"},{v:"meno_pari",l:"- Pari"},{v:"piu_dispari",l:"+ Dispari"},{v:"meno_dispari",l:"- Dispari"}].map(f=>(
+              <button key={f.v} onClick={()=>setFiltroPD(f.v)} style={{background:filtroPD===f.v?`${GEN_COLOR}22`:"transparent",color:filtroPD===f.v?GEN_COLOR:C.dim,border:`1px solid ${filtroPD===f.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{f.l}</button>
+            ))}
+          </div>
+        </div>
       {/* Risultati qty */}
       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
         <span style={{color:C.dim,fontSize:11}}>Risultati:</span>
