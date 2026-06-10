@@ -2388,6 +2388,7 @@ function TabGeneratoreUnificato() {
   const [qty, setQty] = useState(5);
   const [numCandidati, setNumCandidati] = useState(200);
   const [rangeMode, setRangeMode] = useState("adattivo");
+  const [filtroPD, setFiltroPD] = useState("qualsiasi");
   const [customLo, setCustomLo] = useState(Math.round(muReale - sigmaReale));
   const [customHi, setCustomHi] = useState(Math.round(muReale + sigmaReale));
   const [wAdv, setWAdv] = useState(40);
@@ -2440,8 +2441,13 @@ function TabGeneratoreUnificato() {
 
       setAdvScoresRef(advScores);
 
+      const predLSTM=computeLSTM(allDraws);
+      const predReg=computeRegression(allDraws);
       let loB, hiB;
-      if (rangeMode === "auto") {
+      if (rangeMode === "predittivo") {
+        loB=Math.min(predLSTM.predictedRange.lo,predReg.predictedRange.lo);
+        hiB=Math.max(predLSTM.predictedRange.hi,predReg.predictedRange.hi);
+      } else if (rangeMode === "auto") {
         loB = Math.min(Math.round(muReale - sigmaReale), regression.predictedRange.lo, lstm.predictedRange.lo);
         hiB = Math.max(Math.round(muReale + sigmaReale), regression.predictedRange.hi, lstm.predictedRange.hi);
       } else if (rangeMode === "adattivo") {
@@ -2580,7 +2586,7 @@ if(!ripartito) setCicloRipartito(ripartito);
             <HelpBtn title="Range somma" text={HELP.rangeSomma}/>
           </div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
-            {[{v:"auto",l:"Auto"},{v:"adattivo",l:`±1.5σ [${loAdattivo}–${hiAdattivo}]`},{v:"custom",l:"Custom"}].map(r=>(
+            {[{v:"auto",l:"Auto"},{v:"adattivo",l:`±1.5σ [${loAdattivo}–${hiAdattivo}]`},{v:"custom",l:"Custom"},{v:"predittivo",l:"🔮 Predittivo"}].map(r=>(
               <button key={r.v} onClick={()=>setRangeMode(r.v)} style={{background:rangeMode===r.v?`${GEN_COLOR}22`:"transparent",color:rangeMode===r.v?GEN_COLOR:C.dim,border:`1px solid ${rangeMode===r.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{r.l}</button>
             ))}
           </div>
@@ -2629,6 +2635,14 @@ if(!ripartito) setCicloRipartito(ripartito);
         </div>
       </div>
 
+      <div style={{marginTop:10}}>
+          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Filtro Pari/Dispari</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[{v:"qualsiasi",l:"Qualsiasi"},{v:"piu_pari",l:"+ Pari"},{v:"meno_pari",l:"- Pari"},{v:"piu_dispari",l:"+ Dispari"},{v:"meno_dispari",l:"- Dispari"}].map(f=>(
+              <button key={f.v} onClick={()=>setFiltroPD(f.v)} style={{background:filtroPD===f.v?`${GEN_COLOR}22`:"transparent",color:filtroPD===f.v?GEN_COLOR:C.dim,border:`1px solid ${filtroPD===f.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{f.l}</button>
+            ))}
+          </div>
+        </div>
       {/* Risultati qty */}
       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
         <span style={{color:C.dim,fontSize:11}}>Risultati:</span>
