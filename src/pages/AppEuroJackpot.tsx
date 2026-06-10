@@ -1535,7 +1535,7 @@ function computePairCorrelationsEJ(draws) {
 }
 
 function computeLSTMEJ(draws) {
-  const windowSize=5;
+  const windowSize=12;
   function features(nums){
     const s=nums.reduce((a,b)=>a+b,0);
     const e=nums.filter(n=>n%2===0).length;
@@ -1553,12 +1553,21 @@ function computeLSTMEJ(draws) {
   const recent=draws.slice(-windowSize).map(d=>features(d.nums));
   const lastSums=recent.map(f=>f.sum);
   const currentTrend=(lastSums[lastSums.length-1]-lastSums[0])/(windowSize-1);
+  const lastSum=lastSums[lastSums.length-1];
+  const correzioneMean=(lastSum-MU_TEO)*0.15;
+  const recentEvens=draws.slice(-10).map(d=>d.nums.filter(n=>n%2===0).length);
+  const avgEvens=recentEvens.reduce((a,b)=>a+b,0)/recentEvens.length;
+  const evensCorrection=(avgEvens-2.5)*2;
   const weightedPrediction=Math.round(
-    lastSums[lastSums.length-1]*0.4+lastSums[lastSums.length-2]*0.3+
-    lastSums[lastSums.length-3]*0.2+(lastSums[lastSums.length-1]+currentTrend)*0.1
+    lastSums[lastSums.length-1]*0.35+lastSums[lastSums.length-2]*0.25+
+    lastSums[lastSums.length-3]*0.15+lastSums[lastSums.length-4]*0.10+
+    (lastSums[lastSums.length-1]+currentTrend)*0.10-
+    correzioneMean*0.05+evensCorrection
   );
   return {currentTrend:parseFloat(currentTrend.toFixed(1)),predictedSum:weightedPrediction,
-    predictedRange:{lo:Math.round(weightedPrediction-15),hi:Math.round(weightedPrediction+15)},lastSums};
+    predictedRange:{lo:Math.round(weightedPrediction-15),hi:Math.round(weightedPrediction+15)},
+    ritornoMedia:parseFloat(correzioneMean.toFixed(1)),
+    cicloPariDispari:parseFloat(avgEvens.toFixed(1)),lastSums};
 }
 
 function computeRegressionEJ(draws) {
@@ -1575,7 +1584,8 @@ function computeRegressionEJ(draws) {
   const sumXY=x30.reduce((a,s,i)=>a+i*s,0),sumX2=x30.reduce((a,_,i)=>a+i*i,0);
   const slope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
   const intercept=(sumY-slope*sumX)/n;
-  const predicted=Math.round(intercept+slope*n);
+  const predictedRaw=Math.round(intercept+slope*n);
+  const predicted=Math.round(predictedRaw*0.80+MU_TEO*0.20);
   return {muAll:parseFloat(muAll.toFixed(1)),sigmaAll:parseFloat(sigmaAll.toFixed(1)),
     wma:parseFloat(wma.toFixed(1)),predicted,
     predictedRange:{lo:Math.round(predicted-sigmaAll*0.8),hi:Math.round(predicted+sigmaAll*0.8)},allSums};
