@@ -2589,6 +2589,7 @@ if(!ripartito) setCicloRipartito(ripartito);
             {[{v:"auto",l:"Auto"},{v:"adattivo",l:`±1.5σ [${loAdattivo}–${hiAdattivo}]`},{v:"custom",l:"Custom"},{v:"predittivo",l:"🔮 Predittivo"}].map(r=>(
               <button key={r.v} onClick={()=>setRangeMode(r.v)} style={{background:rangeMode===r.v?`${GEN_COLOR}22`:"transparent",color:rangeMode===r.v?GEN_COLOR:C.dim,border:`1px solid ${rangeMode===r.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{r.l}</button>
             ))}
+            {rangeMode==="predittivo"&&(()=>{const pl=computeLSTM(allDraws);const pr=computeRegression(allDraws);const lo=Math.min(pl.predictedRange.lo,pr.predictedRange.lo);const hi=Math.max(pl.predictedRange.hi,pr.predictedRange.hi);return(<span style={{color:GEN_COLOR,fontSize:10,marginLeft:6,fontFamily:"monospace"}}>→ [{lo}–{hi}]</span>);})()}
           </div>
           {rangeMode==="custom"&&(<div style={{display:"flex",gap:8,alignItems:"center"}}>
             <div><div style={{color:C.dim,fontSize:9,marginBottom:2}}>Min</div><input type="number" value={customLo} onChange={e=>setCustomLo(+e.target.value)} style={{width:60,background:"#0a0a1c",color:GEN_COLOR,border:`1px solid ${GEN_COLOR}55`,borderRadius:6,padding:"4px 6px",fontSize:12,fontFamily:"monospace",outline:"none"}}/></div>
