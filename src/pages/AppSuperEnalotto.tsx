@@ -2408,12 +2408,12 @@ function TabGeneratoreUnificato() {
   const GEN_COLOR = "#f59e0b";
 
   const totalW = wAdv + wEns + wPair + wDist + wZone;
-  const pZone = Math.round(wZone / totalW * 100);
   const pAdv = Math.round(wAdv / totalW * 100);
   const pEns = Math.round(wEns / totalW * 100);
   const pPair = Math.round(wPair / totalW * 100);
-  const pDist = 100 - pAdv - pEns - pPair;
-
+  const pDist = Math.round(wDist / totalW * 100);
+  const pZone = Math.round(wZone / totalW * 100);
+  
   const loAdattivo = Math.round(muReale - sigmaReale * 1.5);
 
   const hotColdZones = useMemo(() => {
