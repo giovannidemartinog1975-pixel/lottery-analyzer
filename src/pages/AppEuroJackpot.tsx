@@ -1645,6 +1645,7 @@ function TabGeneratoreUnificatoEJ() {
   const [progress,setProgress]=useState("");
   const [seenCombos,setSeenCombos]=useState<Set<string>>(new Set());
   const [cicloRipartito,setCicloRipartito]=useState<false|number>(false);
+  const [filtroPD,setFiltroPD]=useState("qualsiasi");
 
   const GEN_COLOR="#f59e0b";
   const totalW=wAdv+wEns+wPair+wDist;
@@ -1739,7 +1740,7 @@ function TabGeneratoreUnificatoEJ() {
             const topBonus=bonusAffinita.slice(0,2).map(b=>b.num);
             return {...c,sum:s,total:parseFloat(total.toFixed(1)),advS:parseFloat(advS.toFixed(1)),ensS:parseFloat(ensS.toFixed(1)),pairS:parseFloat(pairS.toFixed(1)),distS:parseFloat(distS.toFixed(1)),zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2),evens,odds:PICK-evens,ritMedio,pairBonus:parseFloat(pairB.toFixed(2)),topBonus};
           });
-          const allSorted=scored.sort((a,b)=>b.total-a.total);
+          const allSorted=scored.filter(r=>r!==null).sort((a,b)=>b.total-a.total);
           const nuovi=allSorted.filter(r=>!seenCombos.has(r.nums.join(",")));
           let finalResults=nuovi.slice(0,qty);
           let ripartito=false;
@@ -1800,6 +1801,14 @@ function TabGeneratoreUnificatoEJ() {
               </div>
             ))}
           </div>
+        <div style={{marginTop:10}}>
+          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>☯️ Pari/Dispari</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[{v:"qualsiasi",l:"Qualsiasi"},{v:"piu_pari",l:"+ Pari"},{v:"meno_pari",l:"- Pari"},{v:"piu_dispari",l:"+ Dispari"},{v:"meno_dispari",l:"- Dispari"}].map(o=>(
+              <button key={o.v} onClick={()=>setFiltroPD(o.v)} style={{background:filtroPD===o.v?`${GEN_COLOR}22`:"transparent",color:filtroPD===o.v?GEN_COLOR:C.dim,border:`1px solid ${filtroPD===o.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{o.l}</button>
+            ))}
+          </div>
+        </div>
         </div>
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
