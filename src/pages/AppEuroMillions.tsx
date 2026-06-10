@@ -1625,6 +1625,14 @@ function TabGeneratoreUnificatoEM() {
         </div>
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+        <div style={{marginTop:10,marginBottom:10}}>
+          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Filtro Pari/Dispari</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[{v:"qualsiasi",l:"Qualsiasi"},{v:"piu_pari",l:"+ Pari"},{v:"meno_pari",l:"- Pari"},{v:"piu_dispari",l:"+ Dispari"},{v:"meno_dispari",l:"- Dispari"}].map(f=>(
+              <button key={f.v} onClick={()=>setFiltroPD(f.v)} style={{background:filtroPD===f.v?`${GEN_COLOR}22`:"transparent",color:filtroPD===f.v?GEN_COLOR:C.dim,border:`1px solid ${filtroPD===f.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{f.l}</button>
+            ))}
+          </div>
+        </div>
         <span style={{color:C.dim,fontSize:11}}>Risultati:</span>
         {[3,5,10,15].map(n=>(<button key={n} onClick={()=>setQty(n)} style={{background:qty===n?`${GEN_COLOR}22`:"transparent",color:qty===n?GEN_COLOR:C.dim,border:`1px solid ${qty===n?GEN_COLOR:C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>))}
       </div>
