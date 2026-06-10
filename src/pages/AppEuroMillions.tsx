@@ -1570,7 +1570,7 @@ function TabGeneratoreUnificatoEM() {
             const topStelle=stelleAffinita.slice(0,2).map(s=>s.num);
             return {...c,sum:s,total:parseFloat(total.toFixed(1)),advS:parseFloat(advS.toFixed(1)),ensS:parseFloat(ensS.toFixed(1)),pairS:parseFloat(pairS.toFixed(1)),distS:parseFloat(distS.toFixed(1)),zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2),evens,odds:PICK-evens,ritMedio,pairBonus:parseFloat(pairB.toFixed(2)),topStelle};
           });
-          const allSorted=scored.sort((a,b)=>b.total-a.total);
+          const allSorted=scored.filter(r=>r!==null).sort((a,b)=>b.total-a.total);
           const nuovi=allSorted.filter(r=>!seenCombos.has(r.nums.join(",")));
           let finalResults=nuovi.slice(0,qty);
           let ripartito=false;
@@ -1623,17 +1623,20 @@ function TabGeneratoreUnificatoEM() {
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
             {[{l:"🧬 Avanzato",v:wAdv,set:setWAdv,c:"#22d3ee"},{l:"🔬 Predittivo",v:wEns,set:setWEns,c:"#e879f9"},{l:"🔗 Coppie",v:wPair,set:setWPair,c:C.orange},{l:"📐 Somma",v:wDist,set:setWDist,c:C.teal}].map(row=>(<div key={row.l}><div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{color:row.c,fontSize:9}}>{row.l}</span><span style={{color:row.c,fontSize:9,fontWeight:700}}>{row.v}pt</span></div><input type="range" min={0} max={60} step={5} value={row.v} onChange={e=>row.set(+e.target.value)} style={{width:"100%",accentColor:row.c,cursor:"pointer"}}/></div>))}
           </div>
-        </div>
-      </div>
-      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
-        <div style={{marginTop:10,marginBottom:10}}>
-          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Filtro Pari/Dispari</div>
+        <<div style={{marginTop:10}}>
+          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>☯️ Pari/Dispari</div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {[{v:"qualsiasi",l:"Qualsiasi"},{v:"piu_pari",l:"+ Pari"},{v:"meno_pari",l:"- Pari"},{v:"piu_dispari",l:"+ Dispari"},{v:"meno_dispari",l:"- Dispari"}].map(f=>(
-              <button key={f.v} onClick={()=>setFiltroPD(f.v)} style={{background:filtroPD===f.v?`${GEN_COLOR}22`:"transparent",color:filtroPD===f.v?GEN_COLOR:C.dim,border:`1px solid ${filtroPD===f.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{f.l}</button>
+            {[{v:"qualsiasi",l:"Qualsiasi"},{v:"piu_pari",l:"+ Pari"},{v:"meno_pari",l:"- Pari"},{v:"piu_dispari",l:"+ Dispari"},{v:"meno_dispari",l:"- Dispari"}].map(o=>(
+              <button key={o.v} onClick={()=>setFiltroPD(o.v)} style={{background:filtroPD===o.v?`${GEN_COLOR}22`:"transparent",color:filtroPD===o.v?GEN_COLOR:C.dim,border:`1px solid ${filtroPD===o.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{o.l}</button>
             ))}
           </div>
         </div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+        <span style={{color:C.dim,fontSize:11}}>Risultati:</span>/div>
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
         <span style={{color:C.dim,fontSize:11}}>Risultati:</span>
         {[3,5,10,15].map(n=>(<button key={n} onClick={()=>setQty(n)} style={{background:qty===n?`${GEN_COLOR}22`:"transparent",color:qty===n?GEN_COLOR:C.dim,border:`1px solid ${qty===n?GEN_COLOR:C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>))}
       </div>

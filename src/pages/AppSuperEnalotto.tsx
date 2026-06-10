@@ -2530,7 +2530,7 @@ function TabGeneratoreUnificato() {
               topSS:getSSSuggestions(allDraws,s,sigmaReale)[0]?.num||null,
             };
           });
-          const allSorted=scored.sort((a,b)=>b.total-a.total);
+          const allSorted=scored.filter(r=>r!==null).sort((a,b)=>b.total-a.total);
           const nuovi=allSorted.filter(r=>!seenCombos.has(r.nums.join(",")));
           let finalResults=nuovi.slice(0,qty);
           let ripartito=false;
