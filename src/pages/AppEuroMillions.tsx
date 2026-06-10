@@ -1485,7 +1485,6 @@ function TabGeneratoreUnificatoEM() {
   const [progress,setProgress]=useState("");
   const [seenCombos,setSeenCombos]=useState<Set<string>>(new Set());
   const [filtroPD,setFiltroPD]=useState("qualsiasi");
-  const [filtroPD,setFiltroPD]=useState("qualsiasi");
   const [cicloRipartito,setCicloRipartito]=useState<false|number>(false);
 
   const GEN_COLOR="#f59e0b";
