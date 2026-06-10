@@ -2644,7 +2644,9 @@ if(!ripartito) setCicloRipartito(ripartito);
             ))}
           </div>
         </div>
-      <div style={{marginTop:10}}>
+      {/* Risultati qty */}
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+        <span style={{color:C.dim,fontSize:11}}>Risultati:</span>yle={{marginTop:10}}>
           <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Filtro Pari/Dispari</div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {[{v:"qualsiasi",l:"Qualsiasi"},{v:"piu_pari",l:"+ Pari"},{v:"meno_pari",l:"- Pari"},{v:"piu_dispari",l:"+ Dispari"},{v:"meno_dispari",l:"- Dispari"}].map(f=>(
