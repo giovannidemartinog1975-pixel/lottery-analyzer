@@ -2391,11 +2391,11 @@ function TabGeneratoreUnificato() {
   const [filtroPD, setFiltroPD] = useState("qualsiasi");
   const [customLo, setCustomLo] = useState(Math.round(muReale - sigmaReale));
   const [customHi, setCustomHi] = useState(Math.round(muReale + sigmaReale));
-  const [wAdv, setWAdv] = useState(40);
-  const [wEns, setWEns] = useState(35);
+  const [wAdv, setWAdv] = useState(35);
+  const [wEns, setWEns] = useState(30);
   const [wPair, setWPair] = useState(15);
   const [wDist, setWDist] = useState(10);
-
+  const [wZone, setWZone] = useState(10);
   const [loading, setLoading] = useState(false);
   const [results,setResults]=useState(()=>{try{const s=sessionStorage.getItem("se_unif_results");return s?JSON.parse(s):[];}catch{return [];}});
   const [advScoresRef,setAdvScoresRef]=useState(()=>{try{const s=sessionStorage.getItem("se_unif_adv");return s?JSON.parse(s):[];}catch{return [];}});
