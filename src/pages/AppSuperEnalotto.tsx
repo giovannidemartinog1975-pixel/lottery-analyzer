@@ -2407,13 +2407,34 @@ function TabGeneratoreUnificato() {
 
   const GEN_COLOR = "#f59e0b";
 
-  const totalW = wAdv + wEns + wPair + wDist;
+  const totalW = wAdv + wEns + wPair + wDist + wZone;
+  const pZone = Math.round(wZone / totalW * 100);
   const pAdv = Math.round(wAdv / totalW * 100);
   const pEns = Math.round(wEns / totalW * 100);
   const pPair = Math.round(wPair / totalW * 100);
   const pDist = 100 - pAdv - pEns - pPair;
 
   const loAdattivo = Math.round(muReale - sigmaReale * 1.5);
+
+  const hotColdZones = useMemo(() => {
+    const WIN_SHORT = 10, WIN_LONG = 50;
+    const expected = WIN_SHORT * PICK / POOL;
+    return Array.from({length: POOL}, (_, i) => {
+      const num = i + 1;
+      const freqShort = allDraws.slice(-WIN_SHORT).filter(d => d.nums.includes(num)).length;
+      const freqLong = allDraws.slice(-WIN_LONG).filter(d => d.nums.includes(num)).length;
+      const expectedLong = WIN_LONG * PICK / POOL;
+      const zShort = (freqShort - expected) / Math.max(Math.sqrt(expected * (1 - PICK/POOL)), 0.1);
+      const zLong = (freqLong - expectedLong) / Math.max(Math.sqrt(expectedLong * (1 - PICK/POOL)), 0.1);
+      // Score alto = transizione da caldo a freddo (zona in raffreddamento = candidata)
+      const score = zLong > 0.5 && zShort < -0.3 ? 1.0  // era caldo, ora freddo → in recupero
+                  : zLong < -0.5 && zShort > 0.3 ? 0.2   // era freddo, ora caldo → surriscaldato
+                  : zShort < -0.5 ? 0.8                    // freddo recente
+                  : zShort > 0.5 ? 0.3                     // caldo recente
+                  : 0.5;                                    // neutro
+      return { num, zShort, zLong, score };
+    });
+  }, [allDraws]);
   const hiAdattivo = Math.round(muReale + sigmaReale * 1.5);
 
   const HELP = {
@@ -2514,7 +2535,9 @@ function TabGeneratoreUnificato() {
             }
             const pairS = Math.min(pairB/10,1)*pPair;
             const distS = Math.max(0, pDist-Math.abs(s-regression.predicted)/Math.max(sigmaReale,1)*5);
-            const total = advS+ensS+pairS+distS;
+            const zoneMean = c.nums.reduce((acc,n) => acc + (hotColdZones.find(x=>x.num===n)?.score||0.5), 0) / c.nums.length;
+            const zoneS = parseFloat((zoneMean * pZone).toFixed(1));
+            const total = advS+ensS+pairS+distS+zoneS;
             const evens = c.nums.filter(n=>n%2===0).length;
             const ritMedio = Math.round(c.nums.reduce((acc,n)=>acc+ritardi[n-1],0)/c.nums.length);
             return {
@@ -2527,6 +2550,7 @@ function TabGeneratoreUnificato() {
               zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2),
               evens, odds:PICK-evens, ritMedio,
               pairBonus:parseFloat(pairB.toFixed(2)),
+              zoneS,
               topSS:getSSSuggestions(allDraws,s,sigmaReale)[0]?.num||null,
             };
           });
@@ -2620,6 +2644,7 @@ if(!ripartito) setCicloRipartito(ripartito);
               {l:"🔬 Predittivo",v:wEns,set:setWEns,c:"#e879f9",help:"predittivo"},
               {l:"🔗 Coppie",v:wPair,set:setWPair,c:C.orange,help:"coppie"},
               {l:"📐 Somma",v:wDist,set:setWDist,c:C.teal,help:"somma"},
+              {l:"🌡️ Zone",v:wZone,set:setWZone,c:"#f472b6",help:"somma"},
             ].map(row=>(
               <div key={row.l}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
@@ -2681,7 +2706,7 @@ if(!ripartito) setCicloRipartito(ripartito);
                     </div>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:4,marginBottom:10}}>
-                    {[{l:"🧬",v:r.advS,max:pAdv,c:"#22d3ee"},{l:"🔬",v:r.ensS,max:pEns,c:"#e879f9"},{l:"🔗",v:r.pairS,max:pPair,c:C.orange},{l:"📐",v:r.distS,max:pDist,c:C.teal}].map(row=>(
+                    {[{l:"🧬",v:r.advS,max:pAdv,c:"#22d3ee"},{l:"🔬",v:r.ensS,max:pEns,c:"#e879f9"},{l:"🔗",v:r.pairS,max:pPair,c:C.orange},{l:"📐",v:r.distS,max:pDist,c:C.teal},{l:"🌡️",v:r.zoneS,max:pZone,c:"#f472b6"}].map(row=>(
                       <div key={row.l} style={{background:"#0a0a18",borderRadius:6,padding:"5px 4px",textAlign:"center"}}>
                         <div style={{fontSize:10,marginBottom:1}}>{row.l}</div>
                         <div style={{color:row.c,fontFamily:"monospace",fontSize:12,fontWeight:900}}>{row.v.toFixed(0)}</div>
