@@ -2535,7 +2535,7 @@ function TabGeneratoreUnificato() {
             }
             const pairS = Math.min(pairB/10,1)*pPair;
             const distS = Math.max(0, pDist-Math.abs(s-regression.predicted)/Math.max(sigmaReale,1)*5);
-            const zoneMean = c.nums.reduce((acc,n) => acc + (hotColdZones.find(x=>x.num===n)?.score||0.5), 0) / c.nums.length;
+            const zoneMean = c.nums.reduce((acc,n) => { const z=hotColdZones[n-1]; return acc+(z?z.score:0.5); }, 0) / c.nums.length;
             const zoneS = parseFloat((zoneMean * pZone).toFixed(1));
             const total = advS+ensS+pairS+distS+zoneS;
             const evens = c.nums.filter(n=>n%2===0).length;
