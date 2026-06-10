@@ -1624,7 +1624,7 @@ function TabGeneratoreUnificatoEM() {
             {[{l:"🧬 Avanzato",v:wAdv,set:setWAdv,c:"#22d3ee"},{l:"🔬 Predittivo",v:wEns,set:setWEns,c:"#e879f9"},{l:"🔗 Coppie",v:wPair,set:setWPair,c:C.orange},{l:"📐 Somma",v:wDist,set:setWDist,c:C.teal}].map(row=>(<div key={row.l}><div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{color:row.c,fontSize:9}}>{row.l}</span><span style={{color:row.c,fontSize:9,fontWeight:700}}>{row.v}pt</span></div><input type="range" min={0} max={60} step={5} value={row.v} onChange={e=>row.set(+e.target.value)} style={{width:"100%",accentColor:row.c,cursor:"pointer"}}/></div>))}
           </div>
         <<div style={{marginTop:10}}>
-          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>☯️ Pari/Dispari</div>
+          <div style={{color:C.dim,fontSize:10,marginBottom:6}}>☯️ Pari/Dispari</div
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {[{v:"qualsiasi",l:"Qualsiasi"},{v:"piu_pari",l:"+ Pari"},{v:"meno_pari",l:"- Pari"},{v:"piu_dispari",l:"+ Dispari"},{v:"meno_dispari",l:"- Dispari"}].map(o=>(
               <button key={o.v} onClick={()=>setFiltroPD(o.v)} style={{background:filtroPD===o.v?`${GEN_COLOR}22`:"transparent",color:filtroPD===o.v?GEN_COLOR:C.dim,border:`1px solid ${filtroPD===o.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{o.l}</button>
