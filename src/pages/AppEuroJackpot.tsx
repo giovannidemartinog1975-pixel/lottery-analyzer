@@ -1681,8 +1681,11 @@ function TabGeneratoreUnificatoEJ() {
       const ritardi=Array.from({length:POOL},(_,i)=>{
         const num=i+1;for(let j=allDraws.length-1;j>=0;j--){if(allDraws[j].nums.includes(num))return allDraws.length-1-j;}return allDraws.length;
       });
+      const predLSTMEJ=computeLSTMEJ(allDraws);
+      const predRegEJ=computeRegressionEJ(allDraws);
       let loB,hiB;
-      if(rangeMode==="auto"){loB=Math.min(Math.round(muReale-sigmaReale),regression.predictedRange.lo,lstm.predictedRange.lo);hiB=Math.max(Math.round(muReale+sigmaReale),regression.predictedRange.hi,lstm.predictedRange.hi);}
+      if(rangeMode==="predittivo"){loB=Math.min(predLSTMEJ.predictedRange.lo,predRegEJ.predictedRange.lo);hiB=Math.max(predLSTMEJ.predictedRange.hi,predRegEJ.predictedRange.hi);}
+      else if(rangeMode==="auto"){loB=Math.min(Math.round(muReale-sigmaReale),regression.predictedRange.lo,lstm.predictedRange.lo);hiB=Math.max(Math.round(muReale+sigmaReale),regression.predictedRange.hi,lstm.predictedRange.hi);}
       else if(rangeMode==="adattivo"){loB=loAdattivo;hiB=hiAdattivo;}
       else{loB=customLo;hiB=customHi;}
       setProgress(`🔮 ${numCandidati*3} candidati...`);
@@ -1728,6 +1731,10 @@ function TabGeneratoreUnificatoEJ() {
             const distS=Math.max(0,pDist-Math.abs(s-regression.predicted)/Math.max(sigmaReale,1)*5);
             const total=advS+ensS+pairS+distS;
             const evens=c.nums.filter(n=>n%2===0).length;
+            if(filtroPD==="piu_pari"&&evens<3) return null;
+            if(filtroPD==="meno_pari"&&evens>2) return null;
+            if(filtroPD==="piu_dispari"&&(PICK-evens)<3) return null;
+            if(filtroPD==="meno_dispari"&&(PICK-evens)>2) return null;
             const ritMedio=Math.round(c.nums.reduce((acc,n)=>acc+ritardi[n-1],0)/c.nums.length);
             const topBonus=bonusAffinita.slice(0,2).map(b=>b.num);
             return {...c,sum:s,total:parseFloat(total.toFixed(1)),advS:parseFloat(advS.toFixed(1)),ensS:parseFloat(ensS.toFixed(1)),pairS:parseFloat(pairS.toFixed(1)),distS:parseFloat(distS.toFixed(1)),zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2),evens,odds:PICK-evens,ritMedio,pairBonus:parseFloat(pairB.toFixed(2)),topBonus};
@@ -1766,9 +1773,10 @@ function TabGeneratoreUnificatoEJ() {
         <div style={{marginBottom:10}}>
           <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Range somma</div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
-            {[{v:"auto",l:"Auto"},{v:"adattivo",l:`±1.5σ [${loAdattivo}–${hiAdattivo}]`},{v:"custom",l:"Custom"}].map(r=>(
+            {[{v:"auto",l:"Auto"},{v:"adattivo",l:`±1.5σ [${loAdattivo}–${hiAdattivo}]`},{v:"custom",l:"Custom"},{v:"predittivo",l:"🔮 Predittivo"}].map(r=>(
               <button key={r.v} onClick={()=>setRangeMode(r.v)} style={{background:rangeMode===r.v?`${GEN_COLOR}22`:"transparent",color:rangeMode===r.v?GEN_COLOR:C.dim,border:`1px solid ${rangeMode===r.v?GEN_COLOR:C.border}`,borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{r.l}</button>
             ))}
+            {rangeMode==="predittivo"&&(()=>{const pl=computeLSTMEJ(allDraws);const pr=computeRegressionEJ(allDraws);const lo=Math.min(pl.predictedRange.lo,pr.predictedRange.lo);const hi=Math.max(pl.predictedRange.hi,pr.predictedRange.hi);return(<span style={{color:GEN_COLOR,fontSize:10,marginLeft:6,fontFamily:"monospace"}}>→ [{lo}–{hi}]</span>);})()}
           </div>
           {rangeMode==="custom"&&(<div style={{display:"flex",gap:8,alignItems:"center"}}>
             <div><div style={{color:C.dim,fontSize:9,marginBottom:2}}>Min</div><input type="number" value={customLo} onChange={e=>setCustomLo(+e.target.value)} style={{width:60,background:"#0a0a1c",color:GEN_COLOR,border:`1px solid ${GEN_COLOR}55`,borderRadius:6,padding:"4px 6px",fontSize:12,fontFamily:"monospace",outline:"none"}}/></div>
