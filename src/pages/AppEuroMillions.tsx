@@ -1473,10 +1473,11 @@ function TabGeneratoreUnificatoEM() {
   const [rangeMode,setRangeMode]=useState("adattivo");
   const [customLo,setCustomLo]=useState(Math.round(muReale-sigmaReale));
   const [customHi,setCustomHi]=useState(Math.round(muReale+sigmaReale));
-  const [wAdv,setWAdv]=useState(40);
-  const [wEns,setWEns]=useState(35);
+  const [wAdv,setWAdv]=useState(35);
+  const [wEns,setWEns]=useState(30);
   const [wPair,setWPair]=useState(15);
   const [wDist,setWDist]=useState(10);
+  const [wZone,setWZone]=useState(10);
   const [loading,setLoading]=useState(false);
   const [results,setResults]=useState([]);
   const [advScoresRef,setAdvScoresRef]=useState([]);
@@ -1488,13 +1489,29 @@ function TabGeneratoreUnificatoEM() {
   const [cicloRipartito,setCicloRipartito]=useState<false|number>(false);
 
   const GEN_COLOR="#f59e0b";
-  const totalW=wAdv+wEns+wPair+wDist;
+  const totalW=wAdv+wEns+wPair+wDist+wZone;
   const pAdv=Math.round(wAdv/totalW*100);
   const pEns=Math.round(wEns/totalW*100);
   const pPair=Math.round(wPair/totalW*100);
-  const pDist=100-pAdv-pEns-pPair;
+  const pDist=Math.round(wDist/totalW*100);
+  const pZone=Math.round(wZone/totalW*100);
   const loAdattivo=Math.round(muReale-sigmaReale*1.5);
   const hiAdattivo=Math.round(muReale+sigmaReale*1.5);
+
+  const hotColdZones=useMemo(()=>{
+    const WIN_SHORT=10,WIN_LONG=50;
+    const expected=WIN_SHORT*PICK/POOL;
+    return Array.from({length:POOL},(_,i)=>{
+      const num=i+1;
+      const freqShort=allDraws.slice(-WIN_SHORT).filter(d=>d.nums.includes(num)).length;
+      const freqLong=allDraws.slice(-WIN_LONG).filter(d=>d.nums.includes(num)).length;
+      const expectedLong=WIN_LONG*PICK/POOL;
+      const zShort=(freqShort-expected)/Math.max(Math.sqrt(expected*(1-PICK/POOL)),0.1);
+      const zLong=(freqLong-expectedLong)/Math.max(Math.sqrt(expectedLong*(1-PICK/POOL)),0.1);
+      const score=zLong>0.5&&zShort<-0.3?1.0:zLong<-0.5&&zShort>0.3?0.2:zShort<-0.5?0.8:zShort>0.5?0.3:0.5;
+      return{num,zShort,zLong,score};
+    });
+  },[allDraws]);
 
   const stelleAffinita=useMemo(()=>{
     const sf={};allDraws.forEach(d=>(d.stelle||[]).forEach(s=>{sf[s]=(sf[s]||0)+1;}));
@@ -1560,7 +1577,9 @@ function TabGeneratoreUnificatoEM() {
             for(let i=0;i<c.nums.length;i++)for(let j=i+1;j<c.nums.length;j++){const p=pairData.topPairs.find(x=>x.nums[0]===c.nums[i]&&x.nums[1]===c.nums[j]);if(p)pairB+=Math.max(0,p.z);}
             const pairS=Math.min(pairB/10,1)*pPair;
             const distS=Math.max(0,pDist-Math.abs(s-regression.predicted)/Math.max(sigmaReale,1)*5);
-            const total=advS+ensS+pairS+distS;
+            const zoneMean=c.nums.reduce((acc,n)=>{const z=hotColdZones[n-1];return acc+(z?z.score:0.5);},0)/c.nums.length;
+            const zoneS=parseFloat((zoneMean*pZone).toFixed(1));
+            const total=advS+ensS+pairS+distS+zoneS;
             const evens=c.nums.filter(n=>n%2===0).length;
             if(filtroPD==="piu_pari"&&evens<3) return null;
             if(filtroPD==="meno_pari"&&evens>2) return null;
@@ -1568,7 +1587,7 @@ function TabGeneratoreUnificatoEM() {
             if(filtroPD==="meno_dispari"&&(PICK-evens)>2) return null;
             const ritMedio=Math.round(c.nums.reduce((acc,n)=>acc+ritardi[n-1],0)/c.nums.length);
             const topStelle=stelleAffinita.slice(0,2).map(s=>s.num);
-            return {...c,sum:s,total:parseFloat(total.toFixed(1)),advS:parseFloat(advS.toFixed(1)),ensS:parseFloat(ensS.toFixed(1)),pairS:parseFloat(pairS.toFixed(1)),distS:parseFloat(distS.toFixed(1)),zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2),evens,odds:PICK-evens,ritMedio,pairBonus:parseFloat(pairB.toFixed(2)),topStelle};
+            return {...c,sum:s,total:parseFloat(total.toFixed(1)),advS:parseFloat(advS.toFixed(1)),ensS:parseFloat(ensS.toFixed(1)),pairS:parseFloat(pairS.toFixed(1)),distS:parseFloat(distS.toFixed(1)),zoneS,zScore:zOf(s,MU_TEO,SIGMA_TEO).toFixed(2),evens,odds:PICK-evens,ritMedio,pairBonus:parseFloat(pairB.toFixed(2)),topStelle};
           });
           const allSorted=scored.filter(r=>r!==null).sort((a,b)=>b.total-a.total);
           const nuovi=allSorted.filter(r=>!seenCombos.has(r.nums.join(",")));
@@ -1621,7 +1640,7 @@ function TabGeneratoreUnificatoEM() {
         <div>
           <div style={{color:C.dim,fontSize:10,marginBottom:6}}>Pesi — totale: <strong style={{color:totalW===100?GEN_COLOR:C.red}}>{totalW}/100</strong></div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            {[{l:"🧬 Avanzato",v:wAdv,set:setWAdv,c:"#22d3ee"},{l:"🔬 Predittivo",v:wEns,set:setWEns,c:"#e879f9"},{l:"🔗 Coppie",v:wPair,set:setWPair,c:C.orange},{l:"📐 Somma",v:wDist,set:setWDist,c:C.teal}].map(row=>(<div key={row.l}><div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{color:row.c,fontSize:9}}>{row.l}</span><span style={{color:row.c,fontSize:9,fontWeight:700}}>{row.v}pt</span></div><input type="range" min={0} max={60} step={5} value={row.v} onChange={e=>row.set(+e.target.value)} style={{width:"100%",accentColor:row.c,cursor:"pointer"}}/></div>))}
+            {[{l:"🧬 Avanzato",v:wAdv,set:setWAdv,c:"#22d3ee"},{l:"🔬 Predittivo",v:wEns,set:setWEns,c:"#e879f9"},{l:"🔗 Coppie",v:wPair,set:setWPair,c:C.orange},{l:"📐 Somma",v:wDist,set:setWDist,c:C.teal},{l:"🌡️ Zone",v:wZone,set:setWZone,c:"#f472b6"}].map(row=>(<div key={row.l}><div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{color:row.c,fontSize:9}}>{row.l}</span><span style={{color:row.c,fontSize:9,fontWeight:700}}>{row.v}pt</span></div><input type="range" min={0} max={60} step={5} value={row.v} onChange={e=>row.set(+e.target.value)} style={{width:"100%",accentColor:row.c,cursor:"pointer"}}/></div>))}
           </div>
         <div style={{marginTop:10}}>
           <div style={{color:C.dim,fontSize:10,marginBottom:6}}>☯️ Pari/Dispari</div>
@@ -1662,7 +1681,7 @@ function TabGeneratoreUnificatoEM() {
                     <div style={{background:"#0a0a18",borderRadius:6,height:8,width:100,overflow:"hidden"}}><div style={{background:`linear-gradient(90deg,${scoreColor},${GEN_COLOR})`,height:"100%",width:`${r.total}%`}}/></div>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:4,marginBottom:10}}>
-                    {[{l:"🧬",v:r.advS,max:pAdv,c:"#22d3ee"},{l:"🔬",v:r.ensS,max:pEns,c:"#e879f9"},{l:"🔗",v:r.pairS,max:pPair,c:C.orange},{l:"📐",v:r.distS,max:pDist,c:C.teal}].map(row=>(<div key={row.l} style={{background:"#0a0a18",borderRadius:6,padding:"5px 4px",textAlign:"center"}}><div style={{fontSize:10,marginBottom:1}}>{row.l}</div><div style={{color:row.c,fontFamily:"monospace",fontSize:12,fontWeight:900}}>{row.v.toFixed(0)}</div><div style={{background:"#050510",borderRadius:2,height:3,overflow:"hidden",marginTop:2}}><div style={{background:row.c,height:"100%",width:`${row.max>0?(row.v/row.max)*100:0}%`}}/></div><div style={{color:C.dim,fontSize:7,marginTop:1}}>/{row.max}</div></div>))}
+                    {[{l:"🧬",v:r.advS,max:pAdv,c:"#22d3ee"},{l:"🔬",v:r.ensS,max:pEns,c:"#e879f9"},{l:"🔗",v:r.pairS,max:pPair,c:C.orange},{l:"📐",v:r.distS,max:pDist,c:C.teal},{l:"🌡️",v:r.zoneS,max:pZone,c:"#f472b6"}].map(row=>(<div key={row.l} style={{background:"#0a0a18",borderRadius:6,padding:"5px 4px",textAlign:"center"}}><div style={{fontSize:10,marginBottom:1}}>{row.l}</div><div style={{color:row.c,fontFamily:"monospace",fontSize:12,fontWeight:900}}>{row.v.toFixed(0)}</div><div style={{background:"#050510",borderRadius:2,height:3,overflow:"hidden",marginTop:2}}><div style={{background:row.c,height:"100%",width:`${row.max>0?(row.v/row.max)*100:0}%`}}/></div><div style={{color:C.dim,fontSize:7,marginTop:1}}>/{row.max}</div></div>))}
                   </div>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
                     {r.nums.map(n=>{const advRank=advScoresRef.findIndex(x=>x.num===n);const col=advRank>=0&&advRank<8?"#FFD700":advRank<20?C.teal:GEN_COLOR;return <Ball key={n} num={n} color={col} size={38} glow={advRank>=0&&advRank<8}/>;})}</div>
