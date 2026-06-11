@@ -1853,8 +1853,69 @@ function computePairCorrelations(draws) {
   };
 }
 
-// ─── LSTM SEMPLIFICATO ───────────────────────────────────────
+// ─── LSTM v2 ─────────────────────────────────────────────────
 function computeLSTM(draws) {
+  const recentSums=draws.slice(-20).map(d=>d.nums.reduce((a,b)=>a+b,0));
+  const recentStd=std(recentSums);
+  const windowSize=recentStd>70?16:recentStd>50?12:9;
+  function features(nums){
+    const s=nums.reduce((a,b)=>a+b,0);
+    const e=nums.filter(n=>n%2===0).length;
+    const gaps=[];for(let i=1;i<nums.length;i++)gaps.push(nums[i]-nums[i-1]);
+    const avgGap=gaps.reduce((a,b)=>a+b,0)/gaps.length;
+    const deciles=new Array(9).fill(0);
+    nums.forEach(n=>deciles[Math.floor((n-1)/10)]++);
+    return {sum:s,evens:e,avgGap,maxDecile:Math.max(...deciles),range:nums[nums.length-1]-nums[0]};
+  }
+  const patterns=[];
+  for(let i=windowSize;i<draws.length;i++){
+    const ctx=draws.slice(i-windowSize,i).map(d=>features(d.nums));
+    const target=features(draws[i].nums);
+    const sumTrend=(ctx[ctx.length-1].sum-ctx[0].sum)/(windowSize-1);
+    patterns.push({sumTrend,predictedSum:ctx[ctx.length-1].sum+sumTrend,actualSum:target.sum});
+  }
+  const recent=draws.slice(-windowSize).map(d=>features(d.nums));
+  const lastSums=recent.map(f=>f.sum);
+  const currentTrend=(lastSums[lastSums.length-1]-lastSums[0])/(windowSize-1);
+  const lastSum=lastSums[lastSums.length-1];
+  const distanzaDaMedia=lastSum-MU_TEO;
+  // Correzione più aggressiva se lontano dalla media
+  const forza=Math.abs(distanzaDaMedia)>SIGMA_TEO?0.25:0.15;
+  const correzioneMean=distanzaDaMedia*forza;
+  // Momentum — ultime 3 somme tutte sopra/sotto media
+  const last3=lastSums.slice(-3);
+  const tutteAlte=last3.every(s=>s>MU_TEO+SIGMA_TEO*0.5);
+  const tutteBasse=last3.every(s=>s<MU_TEO-SIGMA_TEO*0.5);
+  const momentumCorr=tutteAlte?-8:tutteBasse?+8:0;
+  const recentEvens=draws.slice(-10).map(d=>d.nums.filter(n=>n%2===0).length);
+  const avgEvens=recentEvens.reduce((a,b)=>a+b,0)/recentEvens.length;
+  const evensCorrection=(avgEvens-3)*2;
+  const weightedPrediction=Math.round(
+    lastSums[lastSums.length-1]*0.35+
+    lastSums[lastSums.length-2]*0.25+
+    lastSums[lastSums.length-3]*0.15+
+    lastSums[lastSums.length-4]*0.10+
+    (lastSums[lastSums.length-1]+currentTrend)*0.10-
+    correzioneMean*0.05+
+    evensCorrection+
+    momentumCorr
+  );
+  const errors=patterns.map(p=>Math.abs(p.predictedSum-p.actualSum));
+  const avgError=errors.reduce((a,b)=>a+b,0)/errors.length;
+  const rangeAmpiezza=Math.round(Math.max(15,Math.min(recentStd*0.6,30)));
+  return {
+    currentTrend:parseFloat(currentTrend.toFixed(1)),
+    predictedSum:weightedPrediction,
+    predictedRange:{lo:Math.round(weightedPrediction-rangeAmpiezza),hi:Math.round(weightedPrediction+rangeAmpiezza)},
+    ritornoMedia:parseFloat(correzioneMean.toFixed(1)),
+    cicloPariDispari:parseFloat(avgEvens.toFixed(1)),
+    avgError:parseFloat(avgError.toFixed(1)),
+    evensTrend:parseFloat(avgEvens.toFixed(1)),
+    lastSums,
+    windowSize,
+    momentumCorr,
+  };
+}
   const windowSize=12;
   function features(nums){
     const s=nums.reduce((a,b)=>a+b,0);
