@@ -1655,6 +1655,9 @@ function TabGeneratoreUnificatoEJ() {
   const pPair=Math.round(wPair/totalW*100);
   const pDist=Math.round(wDist/totalW*100);
   const pZone=Math.round(wZone/totalW*100);
+  
+  const loAdattivo=Math.round(muReale-sigmaReale*1.5);
+  const hiAdattivo=Math.round(muReale+sigmaReale*1.5);
 
   const hotColdZones=useMemo(()=>{
     const WIN_SHORT=10,WIN_LONG=50;
