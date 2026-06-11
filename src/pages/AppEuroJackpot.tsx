@@ -1655,6 +1655,11 @@ function TabGeneratoreUnificatoEJ() {
   const pPair=Math.round(wPair/totalW*100);
   const pDist=Math.round(wDist/totalW*100);
   const pZone=Math.round(wZone/totalW*100);
+
+  const hotColdZones=useMemo(()=>{
+    const WIN_SHORT=10,WIN_LONG=50;
+    const expected=WIN_SHORT*PICK/POOL;
+    return Array.from({length:POOL},(_,i)=>{
       const num=i+1;
       const freqShort=allDraws.slice(-WIN_SHORT).filter(d=>d.nums.includes(num)).length;
       const freqLong=allDraws.slice(-WIN_LONG).filter(d=>d.nums.includes(num)).length;
