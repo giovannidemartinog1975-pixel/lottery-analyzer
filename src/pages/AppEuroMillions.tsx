@@ -1715,6 +1715,114 @@ function TabGeneratoreUnificatoEM() {
     </div>
   );
 }
+function TabPerformance(){
+  const allDraws=useDraws();
+  const series=useMemo(()=>buildSeries(allDraws),[allDraws]);
+  const sums=series.map(d=>d.sum);
+  const muReale=avg(sums),sigmaReale=std(sums);
+  const [storico,setStorico]=useState([]);
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const{data,error}=await supabase.from("predizioni").select("*").eq("lotteria","euromillions").order("concorso",{ascending:false}).limit(50);
+        if(error)throw error;
+        setStorico(data||[]);
+      }catch{}finally{setLoading(false);}
+    }
+    load();
+  },[allDraws.length]);
+
+  const withReal=storico.filter(p=>p.somma_reale!=null);
+
+  const modelStats=useMemo(()=>{
+    if(withReal.length===0)return null;
+    const lstmErr=withReal.reduce((a,p)=>a+Math.abs(p.lstm-p.somma_reale),0)/withReal.length;
+    const regErr=withReal.reduce((a,p)=>a+Math.abs(p.regressione-p.somma_reale),0)/withReal.length;
+    const wmaErr=withReal.reduce((a,p)=>a+Math.abs(p.wma-p.somma_reale),0)/withReal.length;
+    const totErr=lstmErr+regErr+wmaErr;
+    const wLSTM=Math.round((1-lstmErr/totErr)*100/2);
+    const wReg=Math.round((1-regErr/totErr)*100/2);
+    const wWMA=100-wLSTM-wReg;
+    const scartoMedio=withReal.reduce((a,p)=>a+Math.abs(p.scarto),0)/withReal.length;
+    const dentro=withReal.filter(p=>Math.abs(p.scarto)<=sigmaReale).length;
+    return{lstmErr:lstmErr.toFixed(1),regErr:regErr.toFixed(1),wmaErr:wmaErr.toFixed(1),wLSTM,wReg,wWMA,scartoMedio:scartoMedio.toFixed(1),dentro,tot:withReal.length};
+  },[withReal,sigmaReale]);
+
+  const GEN_COLOR="#f59e0b";
+  const PUR="#e879f9";
+
+  return(
+    <div>
+      <h2 style={{color:GEN_COLOR,fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>📊 Performance Modelli</h2>
+      <div style={{background:"#1a0e00",border:`1px solid ${GEN_COLOR}33`,borderRadius:10,padding:12,marginBottom:14,fontSize:10,color:`${GEN_COLOR}99`,lineHeight:1.7}}>
+        Analisi dell'accuratezza dei modelli predittivi sulle estrazioni reali. Basato su {withReal.length} predizioni verificate.
+      </div>
+      {loading&&<div style={{textAlign:"center",padding:40,color:"#555"}}>⏳ Caricamento...</div>}
+      {!loading&&withReal.length===0&&<div style={{textAlign:"center",padding:40,color:"#555"}}>Nessuna predizione verificata ancora. Inserisci estrazioni per accumulare dati.</div>}
+      {!loading&&modelStats&&(<>
+        <div style={{background:"#0a0a18",border:`2px solid ${GEN_COLOR}44`,borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:GEN_COLOR,fontWeight:700,fontSize:13,marginBottom:10}}>🎯 Errore Medio Assoluto</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+            {[{l:"LSTM",v:modelStats.lstmErr,c:PUR},{l:"Regressione",v:modelStats.regErr,c:C.orange},{l:"WMA",v:modelStats.wmaErr,c:C.teal}].map(x=>(
+              <div key={x.l} style={{background:"#080816",borderRadius:8,padding:10,textAlign:"center",border:`1px solid ${x.c}33`}}>
+                <div style={{color:C.dim,fontSize:9,marginBottom:2}}>{x.l}</div>
+                <div style={{color:x.c,fontFamily:"monospace",fontSize:16,fontWeight:900}}>±{x.v}</div>
+                <div style={{color:C.dim,fontSize:8}}>punti</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
+            <div style={{background:"#080816",borderRadius:8,padding:10,textAlign:"center",border:`1px solid ${GEN_COLOR}33`}}>
+              <div style={{color:C.dim,fontSize:9,marginBottom:2}}>Scarto medio</div>
+              <div style={{color:GEN_COLOR,fontFamily:"monospace",fontSize:16,fontWeight:900}}>±{modelStats.scartoMedio}</div>
+              <div style={{color:C.dim,fontSize:8}}>punti dalla reale</div>
+            </div>
+            <div style={{background:"#080816",borderRadius:8,padding:10,textAlign:"center",border:`1px solid ${C.green}33`}}>
+              <div style={{color:C.dim,fontSize:9,marginBottom:2}}>Dentro ±1σ</div>
+              <div style={{color:C.green,fontFamily:"monospace",fontSize:16,fontWeight:900}}>{modelStats.dentro}/{modelStats.tot}</div>
+              <div style={{color:C.dim,fontSize:8}}>{Math.round(modelStats.dentro/modelStats.tot*100)}%</div>
+            </div>
+          </div>
+        </div>
+        <div style={{background:"#0a0a18",border:`2px solid ${PUR}44`,borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{color:PUR,fontWeight:700,fontSize:13,marginBottom:10}}>⚖️ Pesi Ottimali Suggeriti</div>
+          <div style={{color:C.dim,fontSize:10,marginBottom:12}}>Calcolati invertendo l'errore medio — modelli più accurati ricevono peso maggiore.</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+            {[{l:"LSTM",v:modelStats.wLSTM,c:PUR},{l:"Regressione",v:modelStats.wReg,c:C.orange},{l:"WMA",v:modelStats.wWMA,c:C.teal}].map(x=>(
+              <div key={x.l} style={{background:"#080816",borderRadius:8,padding:10,textAlign:"center",border:`1px solid ${x.c}33`}}>
+                <div style={{color:C.dim,fontSize:9,marginBottom:2}}>{x.l}</div>
+                <div style={{color:x.c,fontFamily:"monospace",fontSize:20,fontWeight:900}}>{x.v}%</div>
+                <div style={{background:"#0a0a18",borderRadius:3,height:4,overflow:"hidden",marginTop:4}}><div style={{background:x.c,height:"100%",width:`${x.v}%`}}/></div>
+              </div>
+            ))}
+          </div>
+          <div style={{color:C.dim,fontSize:9,lineHeight:1.7}}>Questi pesi sono suggeriti per la predizione somma in TabBanda. I pesi attuali sono LSTM 40% · Regressione 35% · WMA 25%.</div>
+        </div>
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
+          <div style={{color:ACCENT,fontWeight:700,fontSize:13,marginBottom:10}}>📋 Storico Predizioni ({storico.length})</div>
+          <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
+            <thead><tr>{["Conc.","Predetta","Reale","Scarto","LSTM","Reg.","WMA"].map(h=>(<th key={h} style={{color:C.dim,padding:"4px 8px",textAlign:"center",borderBottom:`1px solid ${C.border}`,fontWeight:700}}>{h}</th>))}</tr></thead>
+            <tbody>{storico.map((p,i)=>{
+              const col=p.scarto===null?"#555":Math.abs(p.scarto)<=20?C.green:Math.abs(p.scarto)<=40?C.orange:C.red;
+              return(<tr key={i} style={{background:i%2===0?"#080816":"#0a0a18"}}>
+                <td style={{color:ACCENT,padding:"5px 8px",textAlign:"center",fontFamily:"monospace"}}>#{p.concorso||"—"}</td>
+                <td style={{color:PUR,padding:"5px 8px",textAlign:"center",fontFamily:"monospace"}}>{p.somma_predetta}</td>
+                <td style={{color:p.somma_reale?C.text:"#555",padding:"5px 8px",textAlign:"center",fontFamily:"monospace"}}>{p.somma_reale||"⏳"}</td>
+                <td style={{color:col,padding:"5px 8px",textAlign:"center",fontFamily:"monospace",fontWeight:700}}>{p.scarto!=null?(p.scarto>=0?"+":"")+p.scarto:"—"}</td>
+                <td style={{color:"#a78bfa",padding:"5px 8px",textAlign:"center",fontFamily:"monospace"}}>{p.lstm||"—"}</td>
+                <td style={{color:C.orange,padding:"5px 8px",textAlign:"center",fontFamily:"monospace"}}>{p.regressione||"—"}</td>
+                <td style={{color:C.teal,padding:"5px 8px",textAlign:"center",fontFamily:"monospace"}}>{p.wma||"—"}</td>
+              </tr>);
+            })}</tbody>
+          </table></div>
+        </div>
+      </>)}
+    </div>
+  );
+}
+
 const TABS=[
   {id:"animazione",icon:"📈",label:"Animazione"},
   {id:"segnali",icon:"🔬",label:"Segnali & Freq."},
@@ -1727,6 +1835,7 @@ const TABS=[
   {id:"confronto",icon:"🔁",label:"Confronto"},
   {id:"estrazioni",icon:"📥",label:"Estrazioni"},
   {id:"biglietti",icon:"🎫",label:"Biglietti"},
+  {id:"performance",icon:"📊",label:"Performance"},
 ];
 export default function App(){
   const [tab,setTab]=useState("animazione");
@@ -1782,6 +1891,7 @@ export default function App(){
         <div style={{display:tab==="confronto"?"block":"none"}}><TabConfronto/></div>
         <div style={{display:tab==="estrazioni"?"block":"none"}}><TabEstrazioni onUpdate={handleUpdate}/></div>
         <div style={{display:tab==="biglietti"?"block":"none"}}><TabBiglietti/></div>
+        <div style={{display:tab==="performance"?"block":"none"}}><TabPerformance/></div>
         <div style={{marginTop:24,background:"#070712",border:"1px solid #111122",borderRadius:10,padding:12}}>
           <div style={{color:"#353545",fontSize:10,lineHeight:1.7}}>⚠️ Strumento puramente statistico — nessun potere predittivo. Il gioco può causare dipendenza. Vietato ai minori di 18 anni. Dati storici: {allDraws.length} estrazioni.</div>
         </div>
