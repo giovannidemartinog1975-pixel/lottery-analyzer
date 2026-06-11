@@ -1602,21 +1602,6 @@ function computeLSTMEJ(draws) {
   const lastSums=recent.map(f=>f.sum);
   const currentTrend=(lastSums[lastSums.length-1]-lastSums[0])/(windowSize-1);
   const lastSum=lastSums[lastSums.length-1];
-  const correzioneMean=(lastSum-MU_TEO)*0.15;
-  const recentEvens=draws.slice(-10).map(d=>d.nums.filter(n=>n%2===0).length);
-  const avgEvens=recentEvens.reduce((a,b)=>a+b,0)/recentEvens.length;
-  const evensCorrection=(avgEvens-2.5)*2;
-  const weightedPrediction=Math.round(
-    lastSums[lastSums.length-1]*0.35+lastSums[lastSums.length-2]*0.25+
-    lastSums[lastSums.length-3]*0.15+lastSums[lastSums.length-4]*0.10+
-    (lastSums[lastSums.length-1]+currentTrend)*0.10-
-    correzioneMean*0.05+evensCorrection
-  );
-  return {currentTrend:parseFloat(currentTrend.toFixed(1)),predictedSum:weightedPrediction,
-    predictedRange:{lo:Math.round(weightedPrediction-15),hi:Math.round(weightedPrediction+15)},
-    ritornoMedia:parseFloat(correzioneMean.toFixed(1)),
-    cicloPariDispari:parseFloat(avgEvens.toFixed(1)),lastSums};
-}
 
 function computeRegressionEJ(draws) {
   const allSums=draws.map(d=>d.nums.reduce((a,b)=>a+b,0));
