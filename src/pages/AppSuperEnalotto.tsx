@@ -1968,7 +1968,6 @@ function computeLSTM(draws) {
     evensTrend:parseFloat(evensTrend.toFixed(1)),
     lastSums,
   };
-}
 
 // ─── REGRESSIONE SOMMA ───────────────────────────────────────
 function computeRegression(draws) {
