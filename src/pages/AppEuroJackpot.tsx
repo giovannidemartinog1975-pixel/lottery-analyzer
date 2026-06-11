@@ -1674,21 +1674,6 @@ function TabGeneratoreUnificatoEJ() {
     });
   },[allDraws]);
 
-  const hotColdZones=useMemo(()=>{
-    const WIN_SHORT=10,WIN_LONG=50;
-    const expected=WIN_SHORT*PICK/POOL;
-    return Array.from({length:POOL},(_,i)=>{
-      const num=i+1;
-      const freqShort=allDraws.slice(-WIN_SHORT).filter(d=>d.nums.includes(num)).length;
-      const freqLong=allDraws.slice(-WIN_LONG).filter(d=>d.nums.includes(num)).length;
-      const expectedLong=WIN_LONG*PICK/POOL;
-      const zShort=(freqShort-expected)/Math.max(Math.sqrt(expected*(1-PICK/POOL)),0.1);
-      const zLong=(freqLong-expectedLong)/Math.max(Math.sqrt(expectedLong*(1-PICK/POOL)),0.1);
-      const score=zLong>0.5&&zShort<-0.3?1.0:zLong<-0.5&&zShort>0.3?0.2:zShort<-0.5?0.8:zShort>0.5?0.3:0.5;
-      return{num,zShort,zLong,score};
-    });
-  },[allDraws]);
-
   // Bonus affinità
   const bonusAffinita=useMemo(()=>{
     const bf={};allDraws.forEach(d=>(d.bonus||[]).forEach(b=>{bf[b]=(bf[b]||0)+1;}));
