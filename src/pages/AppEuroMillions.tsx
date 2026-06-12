@@ -1139,7 +1139,6 @@ function computeLSTMEM(draws) {
     predictedRange:{lo:Math.round(weightedPrediction-15),hi:Math.round(weightedPrediction+15)},
     ritornoMedia:parseFloat(correzioneMean.toFixed(1)),
     cicloPariDispari:parseFloat(avgEvens.toFixed(1)),lastSums};
-}
 
 function computeRegressionEM(draws) {
   const allSums=draws.map(d=>d.nums.reduce((a,b)=>a+b,0));
