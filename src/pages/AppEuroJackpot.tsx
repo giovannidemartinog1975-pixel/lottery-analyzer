@@ -1584,24 +1584,6 @@ function computeLSTMEJ(draws) {
     lastSums,windowSize,momentumCorr,
   };
 }
-  function features(nums){
-    const s=nums.reduce((a,b)=>a+b,0);
-    const e=nums.filter(n=>n%2===0).length;
-    const gaps=[];for(let i=1;i<nums.length;i++)gaps.push(nums[i]-nums[i-1]);
-    const avgGap=gaps.reduce((a,b)=>a+b,0)/gaps.length;
-    return {sum:s,evens:e,avgGap};
-  }
-  const patterns=[];
-  for(let i=windowSize;i<draws.length;i++){
-    const ctx=draws.slice(i-windowSize,i).map(d=>features(d.nums));
-    const target=features(draws[i].nums);
-    const sumTrend=(ctx[ctx.length-1].sum-ctx[0].sum)/(windowSize-1);
-    patterns.push({sumTrend,predictedSum:ctx[ctx.length-1].sum+sumTrend,actualSum:target.sum});
-  }
-  const recent=draws.slice(-windowSize).map(d=>features(d.nums));
-  const lastSums=recent.map(f=>f.sum);
-  const currentTrend=(lastSums[lastSums.length-1]-lastSums[0])/(windowSize-1);
-  const lastSum=lastSums[lastSums.length-1];
 
 function computeRegressionEJ(draws) {
   const allSums=draws.map(d=>d.nums.reduce((a,b)=>a+b,0));
