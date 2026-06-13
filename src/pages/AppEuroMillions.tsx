@@ -1115,12 +1115,6 @@ function computeLSTMEM(draws) {
     lastSums,windowSize,momentumCorr,
   };
 }
-  function features(nums){
-    const s=nums.reduce((a,b)=>a+b,0);
-    const gaps=[];for(let i=1;i<nums.length;i++)gaps.push(nums[i]-nums[i-1]);
-    const avgGap=gaps.reduce((a,b)=>a+b,0)/gaps.length;
-    return {sum:s,avgGap};
-  }
   const recent=draws.slice(-windowSize).map(d=>features(d.nums));
   const lastSums=recent.map(f=>f.sum);
   const currentTrend=(lastSums[lastSums.length-1]-lastSums[0])/(windowSize-1);
