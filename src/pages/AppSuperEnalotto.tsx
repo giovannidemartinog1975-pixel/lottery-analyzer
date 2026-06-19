@@ -1774,7 +1774,8 @@ function TabEstrazioni({onUpdate}){
         const reg=computeRegression(allDraws);
         const combined=Math.round(lstm.predictedSum*0.40+reg.predicted*0.35+reg.wma*0.25);
         const zPred=zOf(combined,MU_TEO,SIGMA_TEO);
-        await supabase.from("predizioni").insert({lotteria:"superenalotto",concorso:n,data_predizione:dateIso,somma_predetta:combined,somma_reale:sm(newDraw.nums),lstm:lstm.predictedSum,regressione:reg.predicted,wma:Math.round(reg.wma),trend:lstm.currentTrend,z_predetto:parseFloat(zPred.toFixed(3)),scarto:sm(newDraw.nums)-combined});
+        const dateIsoPred=date.trim().split("/").length===2?`2026-${date.trim().split("/")[1].padStart(2,"0")}-${date.trim().split("/")[0].padStart(2,"0")}`:date.trim();
+        await supabase.from("predizioni").insert({lotteria:"superenalotto",concorso:n,data_predizione:dateIsoPred,somma_predetta:combined,somma_reale:sm(newDraw.nums),lstm:lstm.predictedSum,regressione:reg.predicted,wma:Math.round(reg.wma),trend:lstm.currentTrend,z_predetto:parseFloat(zPred.toFixed(3)),scarto:sm(newDraw.nums)-combined});
       }
     }catch(err){console.error("Predizione save error:",err);}
     setConcorso("");setDate("");setNums(Array(PICK).fill(""));setJollyInput("");setSuperstarInput("");
