@@ -1661,8 +1661,8 @@ function TabGeneratoreUnificatoEJ() {
   const [progress,setProgress]=useState("");
   const [seenCombos,setSeenCombos]=useState<Set<string>>(new Set());
   const [cicloRipartito,setCicloRipartito]=useState<false|number>(false);
+  const [scoreMinimo,setScoreMinimo]=useState(0);
   const [filtroPD,setFiltroPD]=useState("qualsiasi");
-
   const GEN_COLOR="#f59e0b";
   const totalW=wAdv+wEns+wPair+wDist+wZone;
   const pAdv=Math.round(wAdv/totalW*100);
