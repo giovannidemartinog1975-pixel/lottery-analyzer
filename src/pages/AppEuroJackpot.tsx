@@ -1496,11 +1496,8 @@ function TabPredittivoEJ() {
             </div>
           )}
         </div>
-        <div style={{background:"#1a001a",border:`1px solid ${PUR}22`,borderRadius:8,padding:10,fontSize:9,color:`${PUR}55`,lineHeight:1.8}}>
-          Modello predittivo ensemble v2. )}
-        </div>
         {/* ⑥ PATTERN SEQUENZIALE */}
-        {(()=>{
+          {(()=>{
           const sums=computed.regression.allSums;
           const mu=computed.regression.muAll;
           const sigma=computed.regression.sigmaAll;
