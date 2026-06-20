@@ -1113,33 +1113,11 @@ function computeLSTMEM(draws) {
     ritornoMedia:parseFloat(correzioneMean.toFixed(1)),
     cicloPariDispari:parseFloat(avgEvens.toFixed(1)),
     lastSums,windowSize,momentumCorr,
-  };
+ };
 }
-  function features(nums){
-    const s=nums.reduce((a,b)=>a+b,0);
-    const gaps=[];for(let i=1;i<nums.length;i++)gaps.push(nums[i]-nums[i-1]);
     const avgGap=gaps.reduce((a,b)=>a+b,0)/gaps.length;
     return {sum:s,avgGap};
-  }
-  const recent=draws.slice(-windowSize).map(d=>features(d.nums));
-  const lastSums=recent.map(f=>f.sum);
-  const currentTrend=(lastSums[lastSums.length-1]-lastSums[0])/(windowSize-1);
-  const lastSum=lastSums[lastSums.length-1];
-  const correzioneMean=(lastSum-MU_TEO)*0.15;
-  const recentEvens=draws.slice(-10).map(d=>d.nums.filter(n=>n%2===0).length);
-  const avgEvens=recentEvens.reduce((a,b)=>a+b,0)/recentEvens.length;
-  const evensCorrection=(avgEvens-2.5)*2;
-  const weightedPrediction=Math.round(
-    lastSums[lastSums.length-1]*0.35+lastSums[lastSums.length-2]*0.25+
-    lastSums[lastSums.length-3]*0.15+lastSums[lastSums.length-4]*0.10+
-    (lastSums[lastSums.length-1]+currentTrend)*0.10-
-    correzioneMean*0.05+evensCorrection
-  );
-  return {currentTrend:parseFloat(currentTrend.toFixed(1)),predictedSum:weightedPrediction,
-    predictedRange:{lo:Math.round(weightedPrediction-rangeAmpiezza),hi:Math.round(weightedPrediction+rangeAmpiezza)},
-    ritornoMedia:parseFloat(correzioneMean.toFixed(1)),
-    cicloPariDispari:parseFloat(avgEvens.toFixed(1)),lastSums};
-
+  
 function computeRegressionEM(draws) {
   const allSums=draws.map(d=>d.nums.reduce((a,b)=>a+b,0));
   const muAll=allSums.reduce((a,b)=>a+b,0)/allSums.length;
