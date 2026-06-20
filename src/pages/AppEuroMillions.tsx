@@ -572,7 +572,7 @@ function TabEstrazioni({onUpdate}){
     }catch(err){setSuccess(`✅ Salvato localmente`);}
     setSavingToDb(false);
     persist([...saved,newDraw].sort((a,b)=>(a.n||0)-(b.n||0)));
-    try{if(allDraws.length>=6){const lstm=computeLSTMEM(allDraws);const reg=computeRegressionEM(allDraws);const combined=Math.round(lstm.predictedSum*0.40+reg.predicted*0.35+reg.wma*0.25);const zPred=zOf(combined,MU_TEO,SIGMA_TEO);await supabase.from("predizioni").insert({lotteria:"euromillions",concorso:n,data_predizione:date.trim().split("/").length===2?`2026-${date.trim().split("/")[1].padStart(2,"0")}-${date.trim().split("/")[0].padStart(2,"0")}`:date.trim(),somma_predetta:combined,somma_reale:sm(newDraw.nums),lstm:lstm.predictedSum,regressione:reg.predicted,wma:Math.round(reg.wma),trend:lstm.currentTrend,z_predetto:parseFloat(zPred.toFixed(3)),scarto:sm(newDraw.nums)-combined});}}catch(err){console.error("Predizione EM save error:",err);}
+    try{if(allDraws.length>=6){const lstm=computeLSTMEM(allDraws);const reg=computeRegressionEM(allDraws);const combined=Math.round(lstm.predictedSum*0.40+reg.predicted*0.35+reg.wma*0.25);const zPred=zOf(combined,MU_TEO,SIGMA_TEO);await supabase.from("predizioni").insert({lotteria:"euromillions",concorso:n,data_predizione:dateIso,somma_predetta:combined,somma_reale:sm(newDraw.nums),lstm:lstm.predictedSum,regressione:reg.predicted,wma:Math.round(reg.wma),trend:lstm.currentTrend,z_predetto:parseFloat(zPred.toFixed(3)),scarto:sm(newDraw.nums)-combined});}}catch(err){console.error("Predizione EM save error:",err);}
     setConcorso("");setDate("");setNums(Array(PICK).fill(""));setStelle(Array(STELLE_COUNT).fill(""));
     setTimeout(()=>setSuccess(""),4000);
   };
@@ -1067,33 +1067,18 @@ function computePairCorrelationsEM(draws) {
 }
 
 function computeLSTMEM(draws) {
-  const recentSums=draws.slice(-20).map(d=>d.nums.reduce((a,b)=>a+b,0));
-  const recentStd=std(recentSums);
-  const windowSize=recentStd>40?16:recentStd>28?12:9;
+  const windowSize=12;
   function features(nums){
     const s=nums.reduce((a,b)=>a+b,0);
     const gaps=[];for(let i=1;i<nums.length;i++)gaps.push(nums[i]-nums[i-1]);
     const avgGap=gaps.reduce((a,b)=>a+b,0)/gaps.length;
     return {sum:s,avgGap};
   }
-  const patterns=[];
-  for(let i=windowSize;i<draws.length;i++){
-    const ctx=draws.slice(i-windowSize,i).map(d=>features(d.nums));
-    const target=features(draws[i].nums);
-    const sumTrend=(ctx[ctx.length-1].sum-ctx[0].sum)/(windowSize-1);
-    patterns.push({sumTrend,predictedSum:ctx[ctx.length-1].sum+sumTrend,actualSum:target.sum});
-  }
   const recent=draws.slice(-windowSize).map(d=>features(d.nums));
   const lastSums=recent.map(f=>f.sum);
   const currentTrend=(lastSums[lastSums.length-1]-lastSums[0])/(windowSize-1);
   const lastSum=lastSums[lastSums.length-1];
-  const distanzaDaMedia=lastSum-MU_TEO;
-  const forza=Math.abs(distanzaDaMedia)>SIGMA_TEO?0.25:0.15;
-  const correzioneMean=distanzaDaMedia*forza;
-  const last3=lastSums.slice(-3);
-  const tutteAlte=last3.every(s=>s>MU_TEO+SIGMA_TEO*0.5);
-  const tutteBasse=last3.every(s=>s<MU_TEO-SIGMA_TEO*0.5);
-  const momentumCorr=tutteAlte?-5:tutteBasse?+5:0;
+  const correzioneMean=(lastSum-MU_TEO)*0.15;
   const recentEvens=draws.slice(-10).map(d=>d.nums.filter(n=>n%2===0).length);
   const avgEvens=recentEvens.reduce((a,b)=>a+b,0)/recentEvens.length;
   const evensCorrection=(avgEvens-2.5)*2;
@@ -1101,20 +1086,16 @@ function computeLSTMEM(draws) {
     lastSums[lastSums.length-1]*0.35+lastSums[lastSums.length-2]*0.25+
     lastSums[lastSums.length-3]*0.15+lastSums[lastSums.length-4]*0.10+
     (lastSums[lastSums.length-1]+currentTrend)*0.10-
-    correzioneMean*0.05+evensCorrection+momentumCorr
+    correzioneMean*0.05+evensCorrection
   );
-  const errors=patterns.map(p=>Math.abs(p.predictedSum-p.actualSum));
-  const avgError=errors.length>0?errors.reduce((a,b)=>a+b,0)/errors.length:0;
-  const rangeAmpiezza=Math.round(Math.max(10,Math.min(recentStd*0.5,25)));
-  return {
-    currentTrend:parseFloat(currentTrend.toFixed(1)),
-    predictedSum:weightedPrediction,
-    predictedRange:{lo:Math.round(weightedPrediction-rangeAmpiezza),hi:Math.round(weightedPrediction+rangeAmpiezza)},
+  return {currentTrend:parseFloat(currentTrend.toFixed(1)),predictedSum:weightedPrediction,
+    predictedRange:{lo:Math.round(weightedPrediction-15),hi:Math.round(weightedPrediction+15)},
     ritornoMedia:parseFloat(correzioneMean.toFixed(1)),
-    cicloPariDispari:parseFloat(avgEvens.toFixed(1)),
+    cicloPariDispari:parseFloat(avgEvens.toFixed(1)),lastSums};
 }
 
 function computeRegressionEM(draws) {
+  const allSums=draws.map(d=>d.nums.reduce((a,b)=>a+b,0));
   const muAll=allSums.reduce((a,b)=>a+b,0)/allSums.length;
   const sigmaAll=Math.sqrt(allSums.reduce((a,s)=>a+(s-muAll)**2,0)/allSums.length);
   const recent=allSums.slice(-20);
@@ -1503,10 +1484,9 @@ function TabGeneratoreUnificatoEM() {
   const [selStelle,setSelStelle]=useState({});
   const [savedIds,setSavedIds]=useState(new Set());
   const [progress,setProgress]=useState("");
- const [seenCombos,setSeenCombos]=useState<Set<string>>(new Set());
+  const [seenCombos,setSeenCombos]=useState<Set<string>>(new Set());
   const [filtroPD,setFiltroPD]=useState("qualsiasi");
   const [cicloRipartito,setCicloRipartito]=useState<false|number>(false);
-  const [scoreMinimo,setScoreMinimo]=useState(0);
 
   const GEN_COLOR="#f59e0b";
   const totalW=wAdv+wEns+wPair+wDist+wZone;
@@ -1672,10 +1652,6 @@ function TabGeneratoreUnificatoEM() {
         </div>
         </div>
       </div>
-      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
-        <span style={{color:C.dim,fontSize:11}}>Score minimo:</span>
-        {[0,30,40,50,60].map(n=>(<button key={n} onClick={()=>setScoreMinimo(n)} style={{background:scoreMinimo===n?`${GEN_COLOR}22`:"transparent",color:scoreMinimo===n?GEN_COLOR:C.dim,border:`1px solid ${scoreMinimo===n?GEN_COLOR:C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n===0?"Tutti":">"+n}</button>))}
-      </div>
       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
         <span style={{color:C.dim,fontSize:11}}>Risultati:</span>
         {[3,5,10,15].map(n=>(<button key={n} onClick={()=>setQty(n)} style={{background:qty===n?`${GEN_COLOR}22`:"transparent",color:qty===n?GEN_COLOR:C.dim,border:`1px solid ${qty===n?GEN_COLOR:C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>))}
@@ -1687,7 +1663,7 @@ function TabGeneratoreUnificatoEM() {
         <>
           <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate{cicloRipartito!==false&&<span style={{color:C.orange,marginLeft:8}}>🔄 Ciclo ripartito — {cicloRipartito} combinazioni uniche trovate con questi parametri, si ricomincia</span>}</div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
-            {results.filter(r=>r.total>=scoreMinimo).map((r,i)=>{
+            {results.map((r,i)=>{
               const isBest=i===0;
               const top3Stelle=stelleAffinita.slice(0,3);
               const chosenStelle=selStelle[i]||r.topStelle;
