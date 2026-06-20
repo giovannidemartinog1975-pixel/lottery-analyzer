@@ -1531,7 +1531,9 @@ function TabPredittivoEJ() {
               ):(
                 <>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:12}}>
-                    <div. Riesegui dopo ogni nuova estrazione.
+                    <div style={{background:"#1a001a",border:`1px solid ${PUR}22`,borderRadius:8,padding:10,fontSize:9,color:`${PUR}55`,lineHeight:1.8}}>
+          Modello predittivo ensemble v2. Nessun potere predittivo garantito. Riesegui dopo ogni nuova estrazione.
+        </div>
         </div>
       </>)}
     </div>
