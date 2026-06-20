@@ -1497,7 +1497,44 @@ function TabPredittivoEJ() {
           )}
         </div>
         <div style={{background:"#1a001a",border:`1px solid ${PUR}22`,borderRadius:8,padding:10,fontSize:9,color:`${PUR}55`,lineHeight:1.8}}>
-          Modello predittivo ensemble v2. Nessun potere predittivo garantito. Riesegui dopo ogni nuova estrazione.
+          Modello predittivo ensemble v2. )}
+        </div>
+        {/* ⑥ PATTERN SEQUENZIALE */}
+        {(()=>{
+          const sums=computed.regression.allSums;
+          const mu=computed.regression.muAll;
+          const sigma=computed.regression.sigmaAll;
+          const encode=s=>s>mu+sigma?"++":s>mu?"+":s>mu-sigma?"-":"--";
+          const states=sums.map(encode);
+          const seqLen=3;
+          const currentSeq=states.slice(-seqLen);
+          const currentKey=currentSeq.join(",");
+          const matches=[];
+          for(let i=seqLen;i<states.length-1;i++){
+            const seg=states.slice(i-seqLen,i);
+            if(seg.join(",")===currentKey){
+              matches.push({idx:i,nextSum:sums[i],nextState:states[i],delta:sums[i]-mu});
+            }
+          }
+          const nUp=matches.filter(m=>m.nextSum>mu).length;
+          const nDown=matches.filter(m=>m.nextSum<=mu).length;
+          const avgDelta=matches.length>0?matches.reduce((a,m)=>a+m.delta,0)/matches.length:0;
+          const predPattern=Math.round(mu+avgDelta);
+          const colSeq={"++":C.red,"+":C.orange,"-":C.teal,"--":C.blue};
+          return(
+            <div style={{background:C.card,border:`1px solid ${PUR}33`,borderRadius:12,padding:14,marginBottom:14}}>
+              <div style={{color:PUR,fontWeight:700,fontSize:13,marginBottom:10}}>⑥ Pattern Sequenziale</div>
+              <div style={{color:C.dim,fontSize:10,marginBottom:12}}>
+                Sequenza attuale (ultime {seqLen}): {currentSeq.map((s,i)=>(
+                  <span key={i} style={{background:`${colSeq[s]}22`,color:colSeq[s],borderRadius:4,padding:"1px 6px",marginLeft:4,fontFamily:"monospace",fontWeight:700}}>{s}</span>
+                ))}
+              </div>
+              {matches.length===0?(
+                <div style={{color:C.dim,fontSize:11,textAlign:"center",padding:16}}>Pattern non trovato nello storico ({sums.length} estrazioni).</div>
+              ):(
+                <>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:12}}>
+                    <div. Riesegui dopo ogni nuova estrazione.
         </div>
       </>)}
     </div>
