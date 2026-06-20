@@ -1497,6 +1497,198 @@ function TabPredittivoEJ() {
           )}
         </div>
         <div style={{background:"#1a001a",border:`1px solid ${PUR}22`,borderRadius:8,padding:10,fontSize:9,color:`${PUR}55`,lineHeight:1.8}}>
+          {/* ⑥ PATTERN SEQUENZIALE */}
+        {(()=>{
+          const sums=computed.regression.allSums;
+          const mu=computed.regression.muAll;
+          const sigma=computed.regression.sigmaAll;
+          const encode=s=>s>mu+sigma?"++":s>mu?"+":s>mu-sigma?"-":"--";
+          const states=sums.map(encode);
+          const seqLen=3;
+          const currentSeq=states.slice(-seqLen);
+          const currentKey=currentSeq.join(",");
+          const matches=[];
+          for(let i=seqLen;i<states.length-1;i++){
+            const seg=states.slice(i-seqLen,i);
+            if(seg.join(",")===currentKey){
+              matches.push({idx:i,nextSum:sums[i],nextState:states[i],delta:sums[i]-mu});
+            }
+          }
+          const nUp=matches.filter(m=>m.nextSum>mu).length;
+          const nDown=matches.filter(m=>m.nextSum<=mu).length;
+          const avgDelta=matches.length>0?matches.reduce((a,m)=>a+m.delta,0)/matches.length:0;
+          const predPattern=Math.round(mu+avgDelta);
+          const colSeq={"++":C.red,"+":C.orange,"-":C.teal,"--":C.blue};
+          return(
+            <div style={{background:C.card,border:`1px solid ${PUR}33`,borderRadius:12,padding:14,marginBottom:14}}>
+              <div style={{color:PUR,fontWeight:700,fontSize:13,marginBottom:10}}>⑥ Pattern Sequenziale</div>
+              <div style={{color:C.dim,fontSize:10,marginBottom:12}}>
+                Sequenza attuale (ultime {seqLen}): {currentSeq.map((s,i)=>(
+                  <span key={i} style={{background:`${colSeq[s]}22`,color:colSeq[s],borderRadius:4,padding:"1px 6px",marginLeft:4,fontFamily:"monospace",fontWeight:700}}>{s}</span>
+                ))}
+              </div>
+              {matches.length===0?(
+                <div style={{color:C.dim,fontSize:11,textAlign:"center",padding:16}}>Pattern non trovato nello storico ({sums.length} estrazioni).</div>
+              ):(
+                <>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:12}}>
+                    <div style={{background:"#080816",borderRadius:8,padding:10,textAlign:"center"}}>
+                      <div style={{color:C.dim,fontSize:9,marginBottom:2}}>Occorrenze storico</div>
+                      <div style={{color:PUR,fontFamily:"monospace",fontSize:18,fontWeight:900}}>{matches.length}</div>
+                      <div style={{color:C.dim,fontSize:8}}>su {sums.length} estrazioni</div>
+                    </div>
+                    <div style={{background:"#080816",borderRadius:8,padding:10,textAlign:"center"}}>
+                      <div style={{color:C.dim,fontSize:9,marginBottom:2}}>Predizione pattern</div>
+                      <div style={{color:PUR,fontFamily:"monospace",fontSize:18,fontWeight:900}}>{predPattern}</div>
+                      <div style={{color:C.dim,fontSize:8}}>Δ medio {avgDelta>=0?"+":""}{avgDelta.toFixed(1)}</div>
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:12}}>
+                    <div style={{background:`${C.orange}11`,borderRadius:8,padding:10,textAlign:"center",border:`1px solid ${C.orange}33`}}>
+                      <div style={{color:C.dim,fontSize:9,marginBottom:2}}>⬆️ Sopra media</div>
+                      <div style={{color:C.orange,fontFamily:"monospace",fontSize:18,fontWeight:900}}>{nUp}/{matches.length}</div>
+                      <div style={{color:C.orange,fontSize:10,fontWeight:700}}>{matches.length>0?Math.round(nUp/matches.length*100):0}%</div>
+                    </div>
+                    <div style={{background:`${C.teal}11`,borderRadius:8,padding:10,textAlign:"center",border:`1px solid ${C.teal}33`}}>
+                      <div style={{color:C.dim,fontSize:9,marginBottom:2}}>⬇️ Sotto media</div>
+                      <div style={{color:C.teal,fontFamily:"monospace",fontSize:18,fontWeight:900}}>{nDown}/{matches.length}</div>
+                      <div style={{color:C.teal,fontSize:10,fontWeight:700}}>{matches.length>0?Math.round(nDown/matches.length*100):0}%</div>
+                    </div>
+                  </div>
+                  <div style={{background:"#080816",borderRadius:8,padding:10,marginBottom:8}}>
+                    <div style={{color:C.dim,fontSize:9,marginBottom:6}}>Ultime 50 somme — marker dove il pattern si è verificato:</div>
+                    <svg width="100%" height="70" viewBox="0 0 400 70" preserveAspectRatio="none">
+                      {(()=>{
+                        const last50=sums.slice(-50);
+                        const min=Math.min(...last50)-20;
+                        const max=Math.max(...last50)+20;
+                        const toY=v=>70-((v-min)/(max-min))*70;
+                        const pts=last50.map((s,i)=>`${(i/(last50.length-1))*400},${toY(s)}`).join(" ");
+                        const muY=toY(mu);
+                        const offset=sums.length-50;
+                        const markers=matches.filter(m=>m.idx>=offset).map(m=>({
+                          x:((m.idx-offset)/(last50.length-1))*400,
+                          y:toY(m.nextSum),
+                          col:m.nextSum>mu?C.orange:C.teal,
+                        }));
+                        return(<>
+                          <line x1="0" y1={muY} x2="400" y2={muY} stroke={`${ACCENT}55`} strokeDasharray="4,3" strokeWidth="1"/>
+                          <polyline points={pts} fill="none" stroke={PUR} strokeWidth="1.5"/>
+                          {markers.map((m,i)=>(
+                            <g key={i}>
+                              <circle cx={m.x} cy={m.y} r="5" fill={`${m.col}44`} stroke={m.col} strokeWidth="1.5"/>
+                              <circle cx={m.x} cy={m.y} r="2" fill={m.col}/>
+                            </g>
+                          ))}
+                        </>);
+                      })()}
+                    </svg>
+                  </div>
+                  <div style={{color:C.dim,fontSize:9,lineHeight:1.7}}>
+                    Codifica: <span style={{color:C.red}}>++</span> sopra +1σ · <span style={{color:C.orange}}>+</span> sopra media · <span style={{color:C.teal}}>-</span> sotto media · <span style={{color:C.blue}}>--</span> sotto -1σ. Solo informativo.
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
+        <div style={{background:"#1a001a",border:`1px solid ${PUR}22`,borderRadius:8,padding:10,fontSize:9,color:`${PUR}55`,lineHeight:1.8}}>
+          {/* ⑥ PATTERN SEQUENZIALE */}
+        {(()=>{
+          const sums=computed.regression.allSums;
+          const mu=computed.regression.muAll;
+          const sigma=computed.regression.sigmaAll;
+          const encode=s=>s>mu+sigma?"++":s>mu?"+":s>mu-sigma?"-":"--";
+          const states=sums.map(encode);
+          const seqLen=3;
+          const currentSeq=states.slice(-seqLen);
+          const currentKey=currentSeq.join(",");
+          const matches=[];
+          for(let i=seqLen;i<states.length-1;i++){
+            const seg=states.slice(i-seqLen,i);
+            if(seg.join(",")===currentKey){
+              matches.push({idx:i,nextSum:sums[i],nextState:states[i],delta:sums[i]-mu});
+            }
+          }
+          const nUp=matches.filter(m=>m.nextSum>mu).length;
+          const nDown=matches.filter(m=>m.nextSum<=mu).length;
+          const avgDelta=matches.length>0?matches.reduce((a,m)=>a+m.delta,0)/matches.length:0;
+          const predPattern=Math.round(mu+avgDelta);
+          const colSeq={"++":C.red,"+":C.orange,"-":C.teal,"--":C.blue};
+          return(
+            <div style={{background:C.card,border:`1px solid ${PUR}33`,borderRadius:12,padding:14,marginBottom:14}}>
+              <div style={{color:PUR,fontWeight:700,fontSize:13,marginBottom:10}}>⑥ Pattern Sequenziale</div>
+              <div style={{color:C.dim,fontSize:10,marginBottom:12}}>
+                Sequenza attuale (ultime {seqLen}): {currentSeq.map((s,i)=>(
+                  <span key={i} style={{background:`${colSeq[s]}22`,color:colSeq[s],borderRadius:4,padding:"1px 6px",marginLeft:4,fontFamily:"monospace",fontWeight:700}}>{s}</span>
+                ))}
+              </div>
+              {matches.length===0?(
+                <div style={{color:C.dim,fontSize:11,textAlign:"center",padding:16}}>Pattern non trovato nello storico ({sums.length} estrazioni).</div>
+              ):(
+                <>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:12}}>
+                    <div style={{background:"#080816",borderRadius:8,padding:10,textAlign:"center"}}>
+                      <div style={{color:C.dim,fontSize:9,marginBottom:2}}>Occorrenze storico</div>
+                      <div style={{color:PUR,fontFamily:"monospace",fontSize:18,fontWeight:900}}>{matches.length}</div>
+                      <div style={{color:C.dim,fontSize:8}}>su {sums.length} estrazioni</div>
+                    </div>
+                    <div style={{background:"#080816",borderRadius:8,padding:10,textAlign:"center"}}>
+                      <div style={{color:C.dim,fontSize:9,marginBottom:2}}>Predizione pattern</div>
+                      <div style={{color:PUR,fontFamily:"monospace",fontSize:18,fontWeight:900}}>{predPattern}</div>
+                      <div style={{color:C.dim,fontSize:8}}>Δ medio {avgDelta>=0?"+":""}{avgDelta.toFixed(1)}</div>
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:12}}>
+                    <div style={{background:`${C.orange}11`,borderRadius:8,padding:10,textAlign:"center",border:`1px solid ${C.orange}33`}}>
+                      <div style={{color:C.dim,fontSize:9,marginBottom:2}}>⬆️ Sopra media</div>
+                      <div style={{color:C.orange,fontFamily:"monospace",fontSize:18,fontWeight:900}}>{nUp}/{matches.length}</div>
+                      <div style={{color:C.orange,fontSize:10,fontWeight:700}}>{matches.length>0?Math.round(nUp/matches.length*100):0}%</div>
+                    </div>
+                    <div style={{background:`${C.teal}11`,borderRadius:8,padding:10,textAlign:"center",border:`1px solid ${C.teal}33`}}>
+                      <div style={{color:C.dim,fontSize:9,marginBottom:2}}>⬇️ Sotto media</div>
+                      <div style={{color:C.teal,fontFamily:"monospace",fontSize:18,fontWeight:900}}>{nDown}/{matches.length}</div>
+                      <div style={{color:C.teal,fontSize:10,fontWeight:700}}>{matches.length>0?Math.round(nDown/matches.length*100):0}%</div>
+                    </div>
+                  </div>
+                  <div style={{background:"#080816",borderRadius:8,padding:10,marginBottom:8}}>
+                    <div style={{color:C.dim,fontSize:9,marginBottom:6}}>Ultime 50 somme — marker dove il pattern si è verificato:</div>
+                    <svg width="100%" height="70" viewBox="0 0 400 70" preserveAspectRatio="none">
+                      {(()=>{
+                        const last50=sums.slice(-50);
+                        const min=Math.min(...last50)-20;
+                        const max=Math.max(...last50)+20;
+                        const toY=v=>70-((v-min)/(max-min))*70;
+                        const pts=last50.map((s,i)=>`${(i/(last50.length-1))*400},${toY(s)}`).join(" ");
+                        const muY=toY(mu);
+                        const offset=sums.length-50;
+                        const markers=matches.filter(m=>m.idx>=offset).map(m=>({
+                          x:((m.idx-offset)/(last50.length-1))*400,
+                          y:toY(m.nextSum),
+                          col:m.nextSum>mu?C.orange:C.teal,
+                        }));
+                        return(<>
+                          <line x1="0" y1={muY} x2="400" y2={muY} stroke={`${ACCENT}55`} strokeDasharray="4,3" strokeWidth="1"/>
+                          <polyline points={pts} fill="none" stroke={PUR} strokeWidth="1.5"/>
+                          {markers.map((m,i)=>(
+                            <g key={i}>
+                              <circle cx={m.x} cy={m.y} r="5" fill={`${m.col}44`} stroke={m.col} strokeWidth="1.5"/>
+                              <circle cx={m.x} cy={m.y} r="2" fill={m.col}/>
+                            </g>
+                          ))}
+                        </>);
+                      })()}
+                    </svg>
+                  </div>
+                  <div style={{color:C.dim,fontSize:9,lineHeight:1.7}}>
+                    Codifica: <span style={{color:C.red}}>++</span> sopra +1σ · <span style={{color:C.orange}}>+</span> sopra media · <span style={{color:C.teal}}>-</span> sotto media · <span style={{color:C.blue}}>--</span> sotto -1σ. Solo informativo.
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
+        <div style={{background:"#1a001a",border:`1px solid ${PUR}22`,borderRadius:8,padding:10,fontSize:9,color:`${PUR}55`,lineHeight:1.8}}>
           Modello predittivo ensemble v2. Nessun potere predittivo garantito. Riesegui dopo ogni nuova estrazione.
         </div>
       </>)}
