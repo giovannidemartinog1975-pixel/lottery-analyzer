@@ -1112,14 +1112,9 @@ function computeLSTMEM(draws) {
     predictedRange:{lo:Math.round(weightedPrediction-rangeAmpiezza),hi:Math.round(weightedPrediction+rangeAmpiezza)},
     ritornoMedia:parseFloat(correzioneMean.toFixed(1)),
     cicloPariDispari:parseFloat(avgEvens.toFixed(1)),
-    lastSums,windowSize,momentumCorr,
- };
 }
-    const avgGap=gaps.reduce((a,b)=>a+b,0)/gaps.length;
-    return {sum:s,avgGap};
-  
+
 function computeRegressionEM(draws) {
-  const allSums=draws.map(d=>d.nums.reduce((a,b)=>a+b,0));
   const muAll=allSums.reduce((a,b)=>a+b,0)/allSums.length;
   const sigmaAll=Math.sqrt(allSums.reduce((a,s)=>a+(s-muAll)**2,0)/allSums.length);
   const recent=allSums.slice(-20);
