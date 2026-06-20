@@ -1089,7 +1089,7 @@ function computeLSTMEM(draws) {
     correzioneMean*0.05+evensCorrection
   );
   return {currentTrend:parseFloat(currentTrend.toFixed(1)),predictedSum:weightedPrediction,
-    predictedRange:{lo:Math.round(weightedPrediction-15),hi:Math.round(weightedPrediction+15)},
+    predictedRange:{lo:Math.round(weightedPrediction-rangeAmpiezza),hi:Math.round(weightedPrediction+rangeAmpiezza)},
     ritornoMedia:parseFloat(correzioneMean.toFixed(1)),
     cicloPariDispari:parseFloat(avgEvens.toFixed(1)),lastSums};
 }
