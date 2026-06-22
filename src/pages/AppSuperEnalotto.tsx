@@ -570,6 +570,77 @@ function TabBanda(){
         </div>
         <div style={{color:C.dim,fontSize:9,lineHeight:1.7}}>Pesi: LSTM 40% · Regressione 35% · WMA 25% · Confidenza ±{Math.round(sigmaReale*0.6)}</div>
       </div>)}
+      {(()=>{
+        const allSums=series.map(d=>d.sum);
+        const N=allSums.length;
+        const mu=muReale;
+        // Ciclo dominante tramite autocorrelazione
+        const periods=[5,7,10,13,17,20,25,30];
+        const centered=allSums.map(s=>s-mu);
+        const spectral=periods.map(period=>{
+          let re=0,im=0;
+          centered.forEach((v,i)=>{re+=v*Math.cos(2*Math.PI*i/period);im+=v*Math.sin(2*Math.PI*i/period);});
+          return {period,power:Math.sqrt(re*re+im*im)/N};
+        }).sort((a,b)=>b.power-a.power);
+        const dom=spectral[0];
+        const posInCycle=((N-1)%dom.period)/dom.period;
+        const pct=Math.round(posInCycle*100);
+        // Analisi storico: cosa succede quando siamo a questa posizione nel ciclo?
+        const tolerance=0.15;
+        const cycleMatches=[];
+        for(let i=dom.period;i<N-1;i++){
+          const pos=((i)%dom.period)/dom.period;
+          if(Math.abs(pos-posInCycle)<=tolerance){
+            cycleMatches.push({idx:i,nextSum:allSums[i+1],delta:allSums[i+1]-mu});
+          }
+        }
+        const nUp=cycleMatches.filter(m=>m.nextSum>mu).length;
+        const nDown=cycleMatches.filter(m=>m.nextSum<=mu).length;
+        const avgDelta=cycleMatches.length>0?cycleMatches.reduce((a,m)=>a+m.delta,0)/cycleMatches.length:0;
+        const segnale=nUp>nDown?"⬆️ RIALZO":"⬇️ RIBASSO";
+        const segnaleCol=nUp>nDown?C.orange:C.teal;
+        const pctSegnale=cycleMatches.length>0?Math.round(Math.max(nUp,nDown)/cycleMatches.length*100):0;
+        return(
+          <div style={{background:"#0a0a18",border:`2px solid ${ACCENT}44`,borderRadius:12,padding:14,marginTop:14}}>
+            <div style={{color:ACCENT,fontWeight:700,fontSize:13,marginBottom:10}}>🔄 Ciclo Dominante — ogni {dom.period} estrazioni</div>
+            <div style={{marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                <span style={{color:C.dim,fontSize:10}}>Posizione nel ciclo</span>
+                <span style={{color:ACCENT,fontFamily:"monospace",fontWeight:700}}>{pct}%</span>
+              </div>
+              <div style={{background:"#050510",borderRadius:4,height:10,overflow:"hidden",position:"relative"}}>
+                <div style={{background:`linear-gradient(90deg,${C.teal},${ACCENT},${C.orange})`,height:"100%",width:`${pct}%`,borderRadius:4}}/>
+                <div style={{position:"absolute",top:0,left:`${pct}%`,transform:"translateX(-50%)",width:3,height:"100%",background:"#fff"}}/>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:8,color:C.dim,marginTop:2}}>
+                <span>inizio</span><span>fine ciclo</span>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
+              <div style={{background:"#080816",borderRadius:8,padding:8,textAlign:"center"}}>
+                <div style={{color:C.dim,fontSize:8,marginBottom:2}}>Campioni storico</div>
+                <div style={{color:ACCENT,fontFamily:"monospace",fontSize:16,fontWeight:900}}>{cycleMatches.length}</div>
+              </div>
+              <div style={{background:`${C.orange}11`,borderRadius:8,padding:8,textAlign:"center",border:`1px solid ${C.orange}33`}}>
+                <div style={{color:C.dim,fontSize:8,marginBottom:2}}>⬆️ Rialzo</div>
+                <div style={{color:C.orange,fontFamily:"monospace",fontSize:14,fontWeight:900}}>{nUp}/{cycleMatches.length}</div>
+                <div style={{color:C.orange,fontSize:9}}>{cycleMatches.length>0?Math.round(nUp/cycleMatches.length*100):0}%</div>
+              </div>
+              <div style={{background:`${C.teal}11`,borderRadius:8,padding:8,textAlign:"center",border:`1px solid ${C.teal}33`}}>
+                <div style={{color:C.dim,fontSize:8,marginBottom:2}}>⬇️ Ribasso</div>
+                <div style={{color:C.teal,fontFamily:"monospace",fontSize:14,fontWeight:900}}>{nDown}/{cycleMatches.length}</div>
+                <div style={{color:C.teal,fontSize:9}}>{cycleMatches.length>0?Math.round(nDown/cycleMatches.length*100):0}%</div>
+              </div>
+            </div>
+            {cycleMatches.length>0&&(
+              <div style={{background:`${segnaleCol}11`,border:`2px solid ${segnaleCol}44`,borderRadius:10,padding:12,textAlign:"center"}}>
+                <div style={{color:segnaleCol,fontSize:16,fontWeight:900,marginBottom:4}}>{segnale} PROBABILE</div>
+                <div style={{color:segnaleCol,fontSize:12}}>{pctSegnale}% dei casi storici · Δ medio {avgDelta>=0?"+":""}{avgDelta.toFixed(1)} punti</div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {storicoPred.length>0&&(<div style={{background:C.card,border:"1px solid #e879f933",borderRadius:12,padding:14,marginTop:14}}>
         <div style={{color:"#e879f9",fontWeight:700,fontSize:13,marginBottom:10}}>📊 Storico Predizioni</div>
         <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
