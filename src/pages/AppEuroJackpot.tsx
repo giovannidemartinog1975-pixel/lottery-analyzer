@@ -1723,6 +1723,7 @@ function TabGeneratoreUnificatoEJ() {
   const [progress,setProgress]=useState("");
   const [seenCombos,setSeenCombos]=useState<Set<string>>(new Set());
   const [cicloRipartito,setCicloRipartito]=useState<false|number>(false);
+  const [scoreMinimo,setScoreMinimo]=useState(0);
   const [filtroPD,setFiltroPD]=useState("qualsiasi");
 
   const GEN_COLOR="#f59e0b";
@@ -1907,6 +1908,10 @@ function TabGeneratoreUnificatoEJ() {
         </div>
         </div>
       </div>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
+        <span style={{color:C.dim,fontSize:11}}>Score minimo:</span>
+        {[0,30,40,50,60].map(n=>(<button key={n} onClick={()=>setScoreMinimo(n)} style={{background:scoreMinimo===n?`${GEN_COLOR}22`:"transparent",color:scoreMinimo===n?GEN_COLOR:C.dim,border:`1px solid ${scoreMinimo===n?GEN_COLOR:C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n===0?"Tutti":">"+n}</button>))}
+      </div>
       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
         <span style={{color:C.dim,fontSize:11}}>Risultati:</span>
         {[3,5,10,15].map(n=>(<button key={n} onClick={()=>setQty(n)} style={{background:qty===n?`${GEN_COLOR}22`:"transparent",color:qty===n?GEN_COLOR:C.dim,border:`1px solid ${qty===n?GEN_COLOR:C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>))}
@@ -1918,7 +1923,7 @@ function TabGeneratoreUnificatoEJ() {
         <>
           <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate{cicloRipartito!==false&&<span style={{color:C.orange,marginLeft:8}}>🔄 Ciclo ripartito — {cicloRipartito} combinazioni uniche trovate con questi parametri, si ricomincia</span>}</div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
-            {results.map((r,i)=>{
+            {results.filter(r=>r.total>=scoreMinimo).map((r,i)=>{
               const isBest=i===0;
               const top3Bonus=bonusAffinita.slice(0,3);
               const chosenBonus=selBonus[i]||r.topBonus;
