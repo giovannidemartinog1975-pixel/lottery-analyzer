@@ -1497,69 +1497,6 @@ function TabPredittivoEJ() {
           )}
         </div>
         <div style={{background:"#1a001a",border:`1px solid ${PUR}22`,borderRadius:8,padding:10,fontSize:9,color:`${PUR}55`,lineHeight:1.8}}>
-          {(()=>{
-          const sums=computed.regression.allSums;
-          const mu=computed.regression.muAll;
-          const sigma=computed.regression.sigmaAll;
-          const encode=s=>s>mu+sigma?"++":s>mu?"+":s>mu-sigma?"-":"--";
-          const states=sums.map(encode);
-          const seqLen=3;
-          const currentSeq=states.slice(-seqLen);
-          const currentKey=currentSeq.join(",");
-          const matches=[];
-          for(let i=seqLen;i<states.length-1;i++){
-            const seg=states.slice(i-seqLen,i);
-            if(seg.join(",")===currentKey){
-              matches.push({idx:i,nextSum:sums[i],delta:sums[i]-mu});
-            }
-          }
-          const nUp=matches.filter(m=>m.nextSum>mu).length;
-          const nDown=matches.filter(m=>m.nextSum<=mu).length;
-          const avgDelta=matches.length>0?matches.reduce((a,m)=>a+m.delta,0)/matches.length:0;
-          const predPattern=Math.round(mu+avgDelta);
-          const colSeq={"++":C.red,"+":C.orange,"-":C.teal,"--":C.blue};
-          return(
-            <div style={{background:C.card,border:`1px solid ${PUR}33`,borderRadius:12,padding:14,marginBottom:14}}>
-              <div style={{color:PUR,fontWeight:700,fontSize:13,marginBottom:10}}>⑥ Pattern Sequenziale</div>
-              <div style={{color:C.dim,fontSize:10,marginBottom:12}}>
-                Sequenza attuale (ultime {seqLen}): {currentSeq.map((s,i)=>(
-                  <span key={i} style={{background:`${colSeq[s]}22`,color:colSeq[s],borderRadius:4,padding:"1px 6px",marginLeft:4,fontFamily:"monospace",fontWeight:700}}>{s}</span>
-                ))}
-              </div>
-              {matches.length===0?(
-                <div style={{color:C.dim,fontSize:11,textAlign:"center",padding:16}}>Pattern non trovato nello storico.</div>
-              ):(
-                <>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:12}}>
-                    <div style={{background:"#080816",borderRadius:8,padding:10,textAlign:"center"}}>
-                      <div style={{color:C.dim,fontSize:9,marginBottom:2}}>Occorrenze storico</div>
-                      <div style={{color:PUR,fontFamily:"monospace",fontSize:18,fontWeight:900}}>{matches.length}</div>
-                    </div>
-                    <div style={{background:"#080816",borderRadius:8,padding:10,textAlign:"center"}}>
-                      <div style={{color:C.dim,fontSize:9,marginBottom:2}}>Predizione pattern</div>
-                      <div style={{color:PUR,fontFamily:"monospace",fontSize:18,fontWeight:900}}>{predPattern}</div>
-                      <div style={{color:C.dim,fontSize:8}}>Δ medio {avgDelta>=0?"+":""}{avgDelta.toFixed(1)}</div>
-                    </div>
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:8}}>
-                    <div style={{background:`${C.orange}11`,borderRadius:8,padding:10,textAlign:"center",border:`1px solid ${C.orange}33`}}>
-                      <div style={{color:C.dim,fontSize:9}}>⬆️ Sopra media</div>
-                      <div style={{color:C.orange,fontFamily:"monospace",fontSize:18,fontWeight:900}}>{nUp}/{matches.length}</div>
-                      <div style={{color:C.orange,fontSize:10,fontWeight:700}}>{Math.round(nUp/matches.length*100)}%</div>
-                    </div>
-                    <div style={{background:`${C.teal}11`,borderRadius:8,padding:10,textAlign:"center",border:`1px solid ${C.teal}33`}}>
-                      <div style={{color:C.dim,fontSize:9}}>⬇️ Sotto media</div>
-                      <div style={{color:C.teal,fontFamily:"monospace",fontSize:18,fontWeight:900}}>{nDown}/{matches.length}</div>
-                      <div style={{color:C.teal,fontSize:10,fontWeight:700}}>{Math.round(nDown/matches.length*100)}%</div>
-                    </div>
-                  </div>
-                  <div style={{color:C.dim,fontSize:9}}>Solo informativo — non concorre allo score Unificato.</div>
-                </>
-              )}
-            </div>
-          );
-        })()}
-        <div style={{background:"#1a001a",border:`1px solid ${PUR}22`,borderRadius:8,padding:10,fontSize:9,color:`${PUR}55`,lineHeight:1.8}}>
           Modello predittivo ensemble v2. Nessun potere predittivo garantito. Riesegui dopo ogni nuova estrazione.
         </div>
       </>)}
