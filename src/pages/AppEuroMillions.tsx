@@ -1196,7 +1196,7 @@ function computeRegressionEM(draws) {
   const predicted=Math.round(predictedRaw*0.80+MU_TEO*0.20);
   return {muAll:parseFloat(muAll.toFixed(1)),sigmaAll:parseFloat(sigmaAll.toFixed(1)),
     wma:parseFloat(wma.toFixed(1)),predicted,
-    predictedRange:{lo:Math.round(predicted-sigmaAll*0.8),hi:Math.round(predicted+sigmaAll*0.8)}};
+    predictedRange:{lo:Math.round(predicted-sigmaAll*0.8),hi:Math.round(predicted+sigmaAll*0.8)},allSums};
 }
 
 function computeEnsemblePredictiveEM(draws,muReale,sigmaReale) {
