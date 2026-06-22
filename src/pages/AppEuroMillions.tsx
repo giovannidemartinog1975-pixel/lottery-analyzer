@@ -1571,6 +1571,7 @@ function TabGeneratoreUnificatoEM() {
   const [seenCombos,setSeenCombos]=useState<Set<string>>(new Set());
   const [filtroPD,setFiltroPD]=useState("qualsiasi");
   const [cicloRipartito,setCicloRipartito]=useState<false|number>(false);
+  const [scoreMinimo,setScoreMinimo]=useState(0);
 
   const GEN_COLOR="#f59e0b";
   const totalW=wAdv+wEns+wPair+wDist+wZone;
@@ -1737,7 +1738,12 @@ function TabGeneratoreUnificatoEM() {
         </div>
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
-        <span style={{color:C.dim,fontSize:11}}>Risultati:</span>
+        </div>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
+        <span style={{color:C.dim,fontSize:11}}>Score minimo:</span>
+        {[0,30,40,50,60].map(n=>(<button key={n} onClick={()=>setScoreMinimo(n)} style={{background:scoreMinimo===n?`${GEN_COLOR}22`:"transparent",color:scoreMinimo===n?GEN_COLOR:C.dim,border:`1px solid ${scoreMinimo===n?GEN_COLOR:C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n===0?"Tutti":">"+n}</button>))}
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
         {[3,5,10,15].map(n=>(<button key={n} onClick={()=>setQty(n)} style={{background:qty===n?`${GEN_COLOR}22`:"transparent",color:qty===n?GEN_COLOR:C.dim,border:`1px solid ${qty===n?GEN_COLOR:C.border}`,borderRadius:14,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>))}
       </div>
       <button onClick={genera} disabled={loading} style={{width:"100%",padding:"14px",background:loading?"#1a0e00":`linear-gradient(135deg,${GEN_COLOR},#d97706)`,color:loading?"#555":"#000",border:"none",borderRadius:10,fontSize:16,fontWeight:900,cursor:loading?"not-allowed":"pointer",fontFamily:"Georgia,serif",marginBottom:12}}>
@@ -1747,7 +1753,7 @@ function TabGeneratoreUnificatoEM() {
         <>
           <div style={{color:C.dim,fontSize:11,marginBottom:12}}><strong style={{color:GEN_COLOR}}>{results.length} migliori</strong> su {numCandidati*3} candidate{cicloRipartito!==false&&<span style={{color:C.orange,marginLeft:8}}>🔄 Ciclo ripartito — {cicloRipartito} combinazioni uniche trovate con questi parametri, si ricomincia</span>}</div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
-            {results.map((r,i)=>{
+            {results.filter(r=>r.total>=scoreMinimo).map((r,i)=>{
               const isBest=i===0;
               const top3Stelle=stelleAffinita.slice(0,3);
               const chosenStelle=selStelle[i]||r.topStelle;
