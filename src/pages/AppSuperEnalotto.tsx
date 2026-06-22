@@ -636,6 +636,13 @@ function TabBanda(){
               <div style={{background:`${segnaleCol}11`,border:`2px solid ${segnaleCol}44`,borderRadius:10,padding:12,textAlign:"center"}}>
                 <div style={{color:segnaleCol,fontSize:16,fontWeight:900,marginBottom:4}}>{segnale} PROBABILE</div>
                 <div style={{color:segnaleCol,fontSize:12}}>{pctSegnale}% dei casi storici · Δ medio {avgDelta>=0?"+":""}{avgDelta.toFixed(1)} punti</div>
+              <div style={{marginTop:8,display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}>
+                <span style={{fontSize:10,color:C.dim}}>Affidabilità:</span>
+                <span style={{background:pctSegnale>=65?"#4A9E5C22":pctSegnale>=55?"#F0703022":"#C9404022",color:pctSegnale>=65?"#4A9E5C":pctSegnale>=55?"#F07030":"#C94040",borderRadius:6,padding:"2px 10px",fontSize:11,fontWeight:700}}>
+                  {pctSegnale>=65?"🟢 ALTA":pctSegnale>=55?"🟡 MEDIA":"🔴 BASSA"}
+                </span>
+                <span style={{color:C.dim,fontSize:9}}>{pctSegnale>=65?"Segnale affidabile":pctSegnale>=55?"Segnale moderato":"Segnale debole — usare con cautela"}</span>
+              </div>
               </div>
             )}
           </div>
