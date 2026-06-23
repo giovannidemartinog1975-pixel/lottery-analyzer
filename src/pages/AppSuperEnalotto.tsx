@@ -2875,7 +2875,7 @@ if(!ripartito) setCicloRipartito(ripartito);
                 <div style={{color:C.dim,fontSize:9}}>media ult. 20: {avgPD.toFixed(1)}P</div>
               </div>
             </div>
-            {(nUpC>nDownC)===（nUpP>(patMatches.length-nUpP))&&patMatches.length>0&&(
+            {(nUpC>nDownC)===(nUpP>(patMatches.length-nUpP))&&patMatches.length>0&&(
               <div style={{background:`${colCiclo}11`,border:`1px solid ${colCiclo}44`,borderRadius:8,padding:8,textAlign:"center"}}>
                 <span style={{color:colCiclo,fontWeight:700,fontSize:11}}>✅ Segnali concordi — {segnaleCiclo.split(" ")[1]} confermato da entrambi i modelli</span>
               </div>
