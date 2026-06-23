@@ -1778,6 +1778,97 @@ function TabGeneratoreUnificatoEM() {
   return(
     <div>
       <h2 style={{color:GEN_COLOR,fontFamily:"Georgia,serif",fontSize:16,marginBottom:8}}>⭐ Generatore Unificato</h2>
+      {(()=>{
+        const allSums=series.map(d=>d.sum);
+        const N=allSums.length;
+        const periods=[5,7,10,13,17,20,25,30];
+        const centered=allSums.map(s=>s-muReale);
+        const spectral=periods.map(period=>{
+          let re=0,im=0;
+          centered.forEach((v,i)=>{re+=v*Math.cos(2*Math.PI*i/period);im+=v*Math.sin(2*Math.PI*i/period);});
+          return {period,power:Math.sqrt(re*re+im*im)/N};
+        }).sort((a,b)=>b.power-a.power);
+        const dom=spectral[0];
+        const posInCycle=((N-1)%dom.period)/dom.period;
+        const pct=Math.round(posInCycle*100);
+        const tolerance=0.15;
+        const cycleMatches=[];
+        for(let i=dom.period;i<N-1;i++){
+          const pos=((i)%dom.period)/dom.period;
+          if(Math.abs(pos-posInCycle)<=tolerance){
+            cycleMatches.push({nextSum:allSums[i+1],delta:allSums[i+1]-muReale});
+          }
+        }
+        const nUpC=cycleMatches.filter(m=>m.nextSum>muReale).length;
+        const nDownC=cycleMatches.length-nUpC;
+        const pctCiclo=cycleMatches.length>0?Math.round(Math.max(nUpC,nDownC)/cycleMatches.length*100):50;
+        const segnaleCiclo=nUpC>nDownC?"⬆️ Rialzo":"⬇️ Ribasso";
+        const affCiclo=pctCiclo>=65?"🟢 ALTA":pctCiclo>=55?"🟡 MEDIA":"🔴 BASSA";
+        const colCiclo=nUpC>nDownC?C.orange:C.teal;
+        const encode=s=>s>muReale+sigmaReale?"++":s>muReale?"+":s>muReale-sigmaReale?"-":"--";
+        const states=allSums.map(encode);
+        const seqLen=3;
+        const currentSeq=states.slice(-seqLen);
+        const currentKey=currentSeq.join(",");
+        const patMatches=[];
+        for(let i=seqLen;i<states.length-1;i++){
+          if(states.slice(i-seqLen,i).join(",")===currentKey){
+            patMatches.push({nextSum:allSums[i],delta:allSums[i]-muReale});
+          }
+        }
+        const nUpP=patMatches.filter(m=>m.nextSum>muReale).length;
+        const pctPattern=patMatches.length>0?Math.round(Math.max(nUpP,patMatches.length-nUpP)/patMatches.length*100):0;
+        const segnalePattern=nUpP>(patMatches.length-nUpP)?"⬆️ Rialzo":"⬇️ Ribasso";
+        const avgDeltaP=patMatches.length>0?patMatches.reduce((a,m)=>a+m.delta,0)/patMatches.length:0;
+        const colPattern=nUpP>(patMatches.length-nUpP)?C.orange:C.teal;
+        const lstm=computeLSTMEM(allDraws);
+        const reg=computeRegressionEM(allDraws);
+        const rangeLo=Math.min(lstm.predictedRange.lo,reg.predictedRange.lo);
+        const rangeHi=Math.max(lstm.predictedRange.hi,reg.predictedRange.hi);
+        const recentPD=allDraws.slice(-20).map(d=>d.nums.filter(n=>n%2===0).length);
+        const avgPD=recentPD.reduce((a,b)=>a+b,0)/recentPD.length;
+        const pdConsigliato=avgPD>=3?"3P–2D":avgPD>=2?"2P–3D":"1P–4D";
+        return(
+          <div style={{background:"#0a0800",border:`2px solid ${GEN_COLOR}66`,borderRadius:12,padding:14,marginBottom:14}}>
+            <div style={{color:GEN_COLOR,fontWeight:700,fontSize:13,marginBottom:12}}>📋 Riepilogo Segnali — consulta prima di generare</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+              <div style={{background:"#080816",borderRadius:8,padding:10,border:`1px solid ${colCiclo}33`}}>
+                <div style={{color:C.dim,fontSize:9,marginBottom:3}}>🔄 Ciclo Dominante</div>
+                <div style={{color:colCiclo,fontWeight:700,fontSize:12}}>{segnaleCiclo}</div>
+                <div style={{color:C.dim,fontSize:9}}>ogni {dom.period} est. · pos. {pct}% · {affCiclo}</div>
+                <div style={{color:colCiclo,fontSize:9}}>{pctCiclo}% storico</div>
+              </div>
+              <div style={{background:"#080816",borderRadius:8,padding:10,border:`1px solid ${colPattern}33`}}>
+                <div style={{color:C.dim,fontSize:9,marginBottom:3}}>⑥ Pattern Sequenziale</div>
+                {patMatches.length>0?(
+                  <>
+                    <div style={{color:colPattern,fontWeight:700,fontSize:12}}>{segnalePattern}</div>
+                    <div style={{color:C.dim,fontSize:9}}>{currentSeq.join(" ")} · {patMatches.length} occ.</div>
+                    <div style={{color:colPattern,fontSize:9}}>{pctPattern}% · Δ {avgDeltaP>=0?"+":""}{avgDeltaP.toFixed(1)}</div>
+                  </>
+                ):(
+                  <div style={{color:"#555",fontSize:10}}>Pattern non trovato</div>
+                )}
+              </div>
+              <div style={{background:"#080816",borderRadius:8,padding:10,border:`1px solid ${GEN_COLOR}33`}}>
+                <div style={{color:C.dim,fontSize:9,marginBottom:3}}>📐 Range somma consigliato</div>
+                <div style={{color:GEN_COLOR,fontWeight:700,fontSize:13,fontFamily:"monospace"}}>{rangeLo}–{rangeHi}</div>
+                <div style={{color:C.dim,fontSize:9}}>da LSTM + Regressione</div>
+              </div>
+              <div style={{background:"#080816",borderRadius:8,padding:10,border:`1px solid ${C.purple}33`}}>
+                <div style={{color:C.dim,fontSize:9,marginBottom:3}}>☯️ P/D consigliato</div>
+                <div style={{color:C.purple,fontWeight:700,fontSize:13}}>{pdConsigliato}</div>
+                <div style={{color:C.dim,fontSize:9}}>media ult. 20: {avgPD.toFixed(1)}P</div>
+              </div>
+            </div>
+            {(nUpC>nDownC)===(nUpP>(patMatches.length-nUpP))&&patMatches.length>0&&(
+              <div style={{background:`${colCiclo}11`,border:`1px solid ${colCiclo}44`,borderRadius:8,padding:8,textAlign:"center"}}>
+                <span style={{color:colCiclo,fontWeight:700,fontSize:11}}>✅ Segnali concordi — {segnaleCiclo.split(" ")[1]} confermato da entrambi i modelli</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       <div style={{background:"#1a0e00",border:`1px solid ${GEN_COLOR}44`,borderRadius:12,padding:14,marginBottom:14}}>
         <div style={{color:GEN_COLOR,fontWeight:700,fontSize:11,marginBottom:8,letterSpacing:1}}>⚙️ PARAMETRI</div>
         <div style={{marginBottom:10}}>
