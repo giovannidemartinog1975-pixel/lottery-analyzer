@@ -3503,7 +3503,8 @@ export default function App(){
         const {data,error}=await supabase
           .from("superenalotto")
           .select("*")
-          .order("data",{ascending:true});
+          .order("data",{ascending:true})
+          .limit(5000);
         if(error) throw error;
         const mapped=data.map(r=>({
           n:r.id,

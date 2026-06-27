@@ -2287,7 +2287,7 @@ export default function App(){
   useEffect(()=>{
     async function loadDraws(){
       try{
-        const {data,error}=await supabase.from("eurojackpot").select("*").order("data",{ascending:true});
+        const {data,error}=await supabase.from("eurojackpot").select("*").order("data",{ascending:true}).limit(5000);
         if(error)throw error;
         const mapped=data.map(r=>({n:r.id,date:r.data?r.data.substring(5).split("-").reverse().join("/"):"",nums:[r.n1,r.n2,r.n3,r.n4,r.n5].filter(Boolean).sort((a,b)=>a-b),bonus:[r.e1,r.e2].filter(Boolean).sort((a,b)=>a-b)}));
         setDbDraws(mapped);
