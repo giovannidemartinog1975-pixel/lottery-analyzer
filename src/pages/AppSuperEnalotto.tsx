@@ -3500,13 +3500,16 @@ export default function App(){
   useEffect(()=>{
     async function loadDraws(){
       try{
-        const {data,error}=await supabase
-          .from("superenalotto")
-          .select("*")
-          .order("data",{ascending:true})
-          .limit(5000);
-        if(error) throw error;
-        const mapped=data.map(r=>({
+        let allData=[];let from=0;
+        while(true){
+          const {data:batch,error:bErr}=await supabase.from("superenalotto").select("*").order("data",{ascending:true}).range(from,from+999);
+          if(bErr)throw bErr;
+          if(!batch||batch.length===0)break;
+          allData=allData.concat(batch);
+          if(batch.length<1000)break;
+          from+=1000;
+        }
+        const mapped=allData.map(r=>({
           n:r.id,
           date:r.data?r.data.substring(5).split("-").reverse().join("/"):"",
           nums:[r.n1,r.n2,r.n3,r.n4,r.n5,r.n6].filter(Boolean).sort((a,b)=>a-b),

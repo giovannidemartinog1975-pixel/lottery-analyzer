@@ -2287,9 +2287,11 @@ export default function App(){
   useEffect(()=>{
     async function loadDraws(){
       try{
-        const {data,error}=await supabase.from("eurojackpot").select("*").order("data",{ascending:true}).limit(5000);
+        const {data,error}=await supabase.from("eurojackpot").select("*").order("data",{ascending:true}).range(0,999);
         if(error)throw error;
-        const mapped=data.map(r=>({n:r.id,date:r.data?r.data.substring(5).split("-").reverse().join("/"):"",nums:[r.n1,r.n2,r.n3,r.n4,r.n5].filter(Boolean).sort((a,b)=>a-b),bonus:[r.e1,r.e2].filter(Boolean).sort((a,b)=>a-b)}));
+        let allData=data||[];
+        if(allData.length===1000){let from=1000;while(true){const{data:b2,error:e2}=await supabase.from("eurojackpot").select("*").order("data",{ascending:true}).range(from,from+999);if(e2)break;if(!b2||b2.length===0)break;allData=allData.concat(b2);if(b2.length<1000)break;from+=1000;}}
+        const mapped=allData.map(r=>({n:r.id,date:r.data?r.data.substring(5).split("-").reverse().join("/"):"",nums:[r.n1,r.n2,r.n3,r.n4,r.n5].filter(Boolean).sort((a,b)=>a-b),bonus:[r.e1,r.e2].filter(Boolean).sort((a,b)=>a-b)}));
         setDbDraws(mapped);
       }catch(err){console.error("Supabase error:",err);setDbDraws([]);}finally{setLoading(false);}
     }
