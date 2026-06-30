@@ -3500,6 +3500,7 @@ export default function App(){
         const mapped=allData.map(r=>({
           n:r.id,
           date:r.data?r.data.substring(5).split("-").reverse().join("/"):"",
+      dataISO:r.data||"",
           nums:[r.n1,r.n2,r.n3,r.n4,r.n5,r.n6].filter(Boolean).sort((a,b)=>a-b),
           jolly:r.jolly||0,
           superstar:r.superstar||0,
@@ -3518,7 +3519,7 @@ export default function App(){
   const allDraws=useMemo(()=>{
     const base=dbDraws.length>0?dbDraws:DRAWS_BASE;
     const extraNs=new Set(extraDraws.map(d=>d.n));
-    return [...base.filter(d=>!extraNs.has(d.n)),...extraDraws].sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+    return [...base.filter(d=>!extraNs.has(d.n)),...extraDraws].sort((a,b)=>(a.dataISO||"").localeCompare(b.dataISO||""));
   },[dbDraws,extraDraws]);
 
   const handleUpdate=useCallback((list)=>{setExtraDraws(list);},[]);
