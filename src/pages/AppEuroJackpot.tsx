@@ -2291,13 +2291,13 @@ export default function App(){
         if(error)throw error;
         let allData=data||[];
         if(allData.length===1000){let from=1000;while(true){const{data:b2,error:e2}=await supabase.from("eurojackpot").select("*").order("data",{ascending:true}).range(from,from+999);if(e2)break;if(!b2||b2.length===0)break;allData=allData.concat(b2);if(b2.length<1000)break;from+=1000;}}
-        const mapped=allData.map(r=>({n:r.id,date:r.data?r.data.substring(5).split("-").reverse().join("/"):"",nums:[r.n1,r.n2,r.n3,r.n4,r.n5].filter(Boolean).sort((a,b)=>a-b),bonus:[r.e1,r.e2].filter(Boolean).sort((a,b)=>a-b)}));
+        const mapped=allData.map(r=>({n:r.id,date:r.data?r.data.substring(5).split("-").reverse().join("/"):"",dataISO:r.data||"",nums:[r.n1,r.n2,r.n3,r.n4,r.n5].filter(Boolean).sort((a,b)=>a-b),bonus:[r.e1,r.e2].filter(Boolean).sort((a,b)=>a-b)}));
         setDbDraws(mapped);
       }catch(err){console.error("Supabase error:",err);setDbDraws([]);}finally{setLoading(false);}
     }
     loadDraws();
   },[]);
-  const allDraws=useMemo(()=>{const base=dbDraws;const extraNs=new Set(extraDraws.map(d=>d.n));return [...base.filter(d=>!extraNs.has(d.n)),...extraDraws].sort((a,b)=>a.n-b.n);},[dbDraws,extraDraws]);
+  const allDraws=useMemo(()=>{const base=dbDraws;const extraNs=new Set(extraDraws.map(d=>d.n));return [...base.filter(d=>!extraNs.has(d.n)),...extraDraws].sort((a,b)=>(a.dataISO||"").localeCompare(b.dataISO||""));},[dbDraws,extraDraws]);
   const handleUpdate=useCallback((list)=>{setExtraDraws(list);},[]);
   const last=allDraws[allDraws.length-1];const lastSum=last?sm(last.nums):0;
   if(loading)return(<div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}><div style={{color:ACCENT,fontSize:28}}>⭐</div><div style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:18}}>Caricamento EuroJackpot...</div><div style={{color:C.dim,fontSize:12}}>Connessione a Supabase</div></div>);
