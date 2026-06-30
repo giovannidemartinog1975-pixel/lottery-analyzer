@@ -6,19 +6,7 @@ import {
 } from "recharts";
 import { supabase } from '../lib/supabase';
 
-const DRAWS_BASE = [
-  { n:1,  date:"02/01/2026", nums:[29,33,47,56,69,89], jolly:16, superstar:7 },
-  { n:2,  date:"03/01/2026", nums:[16,30,32,43,68,76], jolly:36, superstar:58 },
-  { n:3,  date:"05/01/2026", nums:[11,13,17,56,80,84], jolly:41, superstar:13 },
-  { n:4,  date:"08/01/2026", nums:[35,42,45,53,55,88], jolly:66, superstar:52 },
-  { n:5,  date:"09/01/2026", nums:[31,33,61,68,71,72], jolly:87, superstar:18 },
-  { n:6,  date:"10/01/2026", nums:[11,19,24,66,82,88], jolly:58, superstar:48 },
-  { n:7,  date:"12/01/2026", nums:[1,7,11,14,37,58],   jolly:70, superstar:22 },
-  { n:8,  date:"13/01/2026", nums:[20,29,56,68,72,74], jolly:35, superstar:50 },
-  { n:9,  date:"15/01/2026", nums:[44,49,60,69,73,85], jolly:36, superstar:1 },
-  { n:10, date:"16/01/2026", nums:[14,21,24,52,80,86], jolly:57, superstar:14 },
-  { n:84, date:"26/05/2026", nums:[7,10,35,41,45,61],  jolly:2,  superstar:45 },
-];
+const DRAWS_BASE = [];
 
 const MU_TEO    = 277.5;
 const SIGMA_TEO = 62;
@@ -3530,7 +3518,7 @@ export default function App(){
   const allDraws=useMemo(()=>{
     const base=dbDraws.length>0?dbDraws:DRAWS_BASE;
     const extraNs=new Set(extraDraws.map(d=>d.n));
-    return [...base.filter(d=>!extraNs.has(d.n)),...extraDraws].sort((a,b)=>a.n-b.n);
+    return [...base.filter(d=>!extraNs.has(d.n)),...extraDraws].sort((a,b)=>(a.date||"").localeCompare(b.date||""));
   },[dbDraws,extraDraws]);
 
   const handleUpdate=useCallback((list)=>{setExtraDraws(list);},[]);
