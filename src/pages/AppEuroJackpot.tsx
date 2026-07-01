@@ -2278,9 +2278,8 @@ const TABS=[
   {id:"confronto",icon:"🔁",label:"Confronto"},
   {id:"estrazioni",icon:"📥",label:"Estrazioni"},
   {id:"biglietti",icon:"🎫",label:"Biglietti"},
-  {id:"performance",icon:{id:"performance",icon:"📊",label:"Performance"},
+  {id:"performance",icon:"📊",label:"Performance"},
 {id:"oracolo",icon:"🔮",label:"Oracolo"},
-];"📊",label:"Performance"},
 ];
 export default function App(){
   const [tab,setTab]=useState("animazione");
