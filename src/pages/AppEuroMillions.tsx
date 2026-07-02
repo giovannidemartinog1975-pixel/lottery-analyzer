@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
 import { ComposedChart, LineChart, BarChart, Line, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Area, Legend } from "recharts";
 import { supabase } from '../lib/supabase';
+import TabOracolo from './TabOracolo';
 
 const MU_TEO=127.5, SIGMA_TEO=30, JACKPOT="76.000.000 CHF", ACCENT="#4A8FD4";
 const POOL=50, PICK=5, STELLE_POOL=12, STELLE_COUNT=2;
@@ -2093,6 +2094,7 @@ const TABS=[
   {id:"estrazioni",icon:"📥",label:"Estrazioni"},
   {id:"biglietti",icon:"🎫",label:"Biglietti"},
   {id:"performance",icon:"📊",label:"Performance"},
+{id:"oracolo",icon:"🔮",label:"Oracolo"},
 ];
 export default function App(){
   const [tab,setTab]=useState("animazione");
@@ -2149,6 +2151,7 @@ export default function App(){
         <div style={{display:tab==="estrazioni"?"block":"none"}}><TabEstrazioni onUpdate={handleUpdate}/></div>
         <div style={{display:tab==="biglietti"?"block":"none"}}><TabBiglietti/></div>
         <div style={{display:tab==="performance"?"block":"none"}}><TabPerformance/></div>
+        <div style={{display:tab==="oracolo"?"block":"none"}}><TabOracolo gioco="EM" estrazioni={allDraws.map(d=>({data:d.dataISO||"",nums:d.nums,stars:d.bonus||d.stars||[]}))}/></div>
         <div style={{marginTop:24,background:"#070712",border:"1px solid #111122",borderRadius:10,padding:12}}>
           <div style={{color:"#353545",fontSize:10,lineHeight:1.7}}>⚠️ Strumento puramente statistico — nessun potere predittivo. Il gioco può causare dipendenza. Vietato ai minori di 18 anni. Dati storici: {allDraws.length} estrazioni.</div>
         </div>
