@@ -338,7 +338,7 @@ function TabAnimazione(){
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginTop:14}}>
         <div style={{color:ACCENT,fontWeight:700,fontSize:13,marginBottom:8}}>☯️ Andamento Pari / Dispari</div>
         <ResponsiveContainer width="100%" height={140}>
-          <BarChart data={allDraws.slice(-100).map(d=>({date:d.date?.substring(0,5)||"",pari:d.nums.filter(n=>n%2===0).length,dispari:d.nums.filter(n=>n%2!==0).length}))} margin={{top:4,right:8,bottom:0,left:-20}}>
+          <BarChart data={allDraws.slice(-100).map(d=>({date:d.date||"",pari:d.nums.filter(n=>n%2===0).length,dispari:d.nums.filter(n=>n%2!==0).length}))} margin={{top:4,right:8,bottom:0,left:-20}}>
             <CartesianGrid strokeDasharray="2 4" stroke="#0e0e1c"/>
             <XAxis dataKey="date" tick={{fill:C.dim,fontSize:8}} interval={Math.ceil(Math.min(allDraws.length,100)/8)}/>
             <YAxis domain={[0,6]} ticks={[0,2,4,6]} tick={{fill:C.dim,fontSize:8}}/>
@@ -505,7 +505,7 @@ function TabBanda(){
   const muT=useAdaptive?muReale:MU_TEO,sigT=useAdaptive?sigmaReale:SIGMA_TEO;
   const loB=Math.round(muT-kBand*sigT),hiB=Math.round(muT+kBand*sigT);
   const inBand=series.filter(d=>d.sum>=loB&&d.sum<=hiB).length;
-  const chartData=useMemo(()=>{const base=series.slice(-200).map(d=>({date:d.date?.substring(0,5)||"",sum:d.sum,mu:d.mu,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale)}));if(predizione){base.push({date:"pred.",sum:null,mu:null,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale),pred:predizione.combined,predLo:predizione.lo,predHi:predizione.hi});}return base;},[series,muReale,kBand,sigmaReale,predizione]);
+  const chartData=useMemo(()=>{const base=series.slice(-200).map(d=>({date:d.date||"",sum:d.sum,mu:d.mu,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale)}));if(predizione){base.push({date:"pred.",sum:null,mu:null,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale),pred:predizione.combined,predLo:predizione.lo,predHi:predizione.hi});}return base;},[series,muReale,kBand,sigmaReale,predizione]);
   const bands=[0.5,1.0,1.5,2.0,2.5].map(k=>({k,loA:Math.round(muReale-k*sigmaReale),hiA:Math.round(muReale+k*sigmaReale),inA:sums.filter(s=>s>=muReale-k*sigmaReale&&s<=muReale+k*sigmaReale).length}));
   return(
     <div>
