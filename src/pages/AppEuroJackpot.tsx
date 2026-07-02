@@ -229,7 +229,7 @@ function TabBanda(){
   const muT=useAdaptive?muReale:MU_TEO,sigT=useAdaptive?sigmaReale:SIGMA_TEO;
   const loB=Math.round(muT-kBand*sigT),hiB=Math.round(muT+kBand*sigT);
   const inBand=series.filter(d=>d.sum>=loB&&d.sum<=hiB).length;
-  const chartData=useMemo(()=>{const base=series.slice(-200).map(d=>({date:d.date||""d(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale)}));if(predizione){base.push({date:"pred.",sum:null,mu:null,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale),pred:predizione.combined,predLo:predizione.lo,predHi:predizione.hi});}return base;},[series,muReale,kBand,sigmaReale,predizione]);
+  const chartData=useMemo(()=>{const base=series.slice(-200).map(d=>({date:d.date||"",sum:d.sum,mu:d.mu,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale)}));if(predizione){base.push({date:"pred.",sum:null,mu:null,loA:Math.round(muReale-kBand*sigmaReale),hiA:Math.round(muReale+kBand*sigmaReale),pred:predizione.combined,predLo:predizione.lo,predHi:predizione.hi});}return base;},[series,muReale,kBand,sigmaReale,predizione]);
   return(
     <div>
       <h2 style={{color:ACCENT,fontFamily:"Georgia,serif",fontSize:16,marginBottom:12}}>📐 Banda Adattiva</h2>
