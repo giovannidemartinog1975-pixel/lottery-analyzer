@@ -2105,7 +2105,7 @@ export default function App(){
       try{
         const {data,error}=await supabase.from("euromillions").select("*").order("data",{ascending:true});
         if(error)throw error;
-        const mapped=data.map(r=>({n:r.id,date:r.data?r.data.substring(5).split("-").reverse().join("/"):"",nums:[r.n1,r.n2,r.n3,r.n4,r.n5].filter(Boolean).sort((a,b)=>a-b),stelle:[r.s1,r.s2].filter(Boolean).sort((a,b)=>a-b)}));
+        const mapped=data.map(r=>({n:r.id,date:r.data?r.data.substring(8)+"/"+r.data.substring(5,7)+"/"+r.data.substring(2,4):"",nums:[r.n1,r.n2,r.n3,r.n4,r.n5].filter(Boolean).sort((a,b)=>a-b),stelle:[r.s1,r.s2].filter(Boolean).sort((a,b)=>a-b)}));
         setDbDraws(mapped);
       }catch(err){console.error("Supabase error:",err);setDbDraws([]);}finally{setLoading(false);}
     }
