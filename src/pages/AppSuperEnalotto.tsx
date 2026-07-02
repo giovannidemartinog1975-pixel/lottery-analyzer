@@ -3501,7 +3501,7 @@ export default function App(){
         }
         const mapped=allData.map(r=>({
           n:r.id,
-          date:r.data?r.data.subdate:r.data?r.data.substring(8)+"/"+r.data.substring(5,7)+"/"+r.data.substring(2,4):"",string(5).split("-").reverse().join("/"):"",
+          date:r.data?r.data.substring(8)+"/"+r.data.substring(5,7)+"/"+r.data.substring(2,4):"",
       dataISO:r.data||"",
           nums:[r.n1,r.n2,r.n3,r.n4,r.n5,r.n6].filter(Boolean).sort((a,b)=>a-b),
           jolly:r.jolly||0,
