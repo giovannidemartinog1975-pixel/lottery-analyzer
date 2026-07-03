@@ -311,6 +311,25 @@ export default function TabOracolo({
   const [rangeLo, setRangeLo] = useState<number | null>(null);
   const [rangeHi, setRangeHi] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [wheelMode, setWheelMode] = useState(false);
+  const wheelCombos = useMemo(() => {
+    if (!wheelMode) return null;
+    const candidati = ranked.slice(0, 14);
+    let seed = 777;
+    const rand = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    const sample = (arr, k) => { const c = [...arr]; const out = []; for (let i = 0; i < k; i++) { const idx = Math.floor(rand() * c.length); out.push(c[idx]); c.splice(idx, 1); } return out; };
+    let bestSystem = null, bestScore = -1;
+    for (let a = 0; a < 3000; a++) {
+      const system = []; for (let i = 0; i < 5; i++) system.push(sample(candidati, pick).sort((x, y) => x - y));
+      let sum = 0; const trials = 30;
+      for (let t = 0; t < trials; t++) { const winners = new Set(sample(candidati, pick)); let best = 0;
+        system.forEach((c) => { const ov = c.filter((n) => winners.has(n)).length; if (ov > best) best = ov; });
+        sum += best; }
+      const avg = sum / trials;
+      if (avg > bestScore) { bestScore = avg; bestSystem = system; }
+    }
+    return { candidati, system: bestSystem, avgScore: bestScore };
+  }, [wheelMode, ranked, pick]);
   const [salvataggio, setSalvataggio] = useState<Record<number, string>>({});
 
   const result = useMemo(() => {
@@ -431,9 +450,13 @@ export default function TabOracolo({
 
       {/* COMBINAZIONI */}
       <div style={{ background: "#12121F", borderRadius: 14, padding: 14, marginBottom: 14, border: "1px solid #22223A" }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#D4AF37", marginBottom: 4 }}>{"🏆 Le 5 combinazioni"}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#D4AF37" }}>{wheelMode ? "🎯 Wheeling — 5 sestine su 14 candidati" : "🏆 Le 5 combinazioni"}</div>
+          <button onClick={() => setWheelMode(!wheelMode)} style={{ background: wheelMode ? "#D4AF3722" : "#1A1A2E", border: `1px solid ${wheelMode ? "#D4AF37" : "#333"}`, borderRadius: 8, color: wheelMode ? "#D4AF37" : "#aaa", fontSize: 11, padding: "4px 10px", cursor: "pointer" }}>{wheelMode ? "Standard" : "🎯 Wheeling"}</button>
+        </div>
+        {wheelMode && wheelCombos && <div style={{ fontSize: 11, color: "#888", marginBottom: 10 }}>Copertura media testata: {wheelCombos.avgScore.toFixed(1)}/{pick} numeri catturati se escono {pick} dei 14 candidati · candidati: {wheelCombos.candidati.join(", ")}</div>}
         <div style={{ fontSize: 10, color: "#666", marginBottom: 10 }}>Range {sumLo}–{sumHi} · filtri strutturali · deficit collettivo · sistema voti</div>
-        {combos.map((combo, i) => { const total = combo.reduce((a, b) => a + b, 0);
+        {(wheelMode && wheelCombos ? wheelCombos.system : combos).map((combo, i) => { const total = combo.reduce((a, b) => a + b, 0);
           const tv = combo.reduce((s, n) => s + votes[n], 0);
           const best = i === 0; const stato = salvataggio[i] || "idle"; const salvata = giaSalvata(combo);
           return (
