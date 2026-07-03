@@ -312,6 +312,18 @@ export default function TabOracolo({
   const [rangeHi, setRangeHi] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [wheelMode, setWheelMode] = useState(false);
+  const [salvataggio, setSalvataggio] = useState<Record<number, string>>({});
+
+  const result = useMemo(() => {
+    try {
+      const manuale = rangeMode === "manuale" && rangeLo != null && rangeHi != null && rangeLo <= rangeHi ? { lo: rangeLo, hi: rangeHi } : null;
+      return calcolaOracolo(gioco, estrazioni, manuale);
+    } catch (e) { console.error(e); return null; }
+  }, [gioco, estrazioni, rangeMode, rangeLo, rangeHi]);
+
+  if (!result) return <div style={{ padding: 24, textAlign: "center", color: "#888" }}>Servono almeno 30 estrazioni.</div>;
+
+  const { ranked, votes, scores, deficit, combos, segnali, stelle, superstar, lastSum, zLast, sumLo, sumHi, rangeAuto, mu, sigma, pool, pick, bussola, neighFreq, dayBias, vertCand } = result;
   const wheelCombos = useMemo(() => {
     if (!wheelMode) return null;
     const candidati = ranked.slice(0, 14);
@@ -330,18 +342,6 @@ export default function TabOracolo({
     }
     return { candidati, system: bestSystem, avgScore: bestScore };
   }, [wheelMode, ranked, pick]);
-  const [salvataggio, setSalvataggio] = useState<Record<number, string>>({});
-
-  const result = useMemo(() => {
-    try {
-      const manuale = rangeMode === "manuale" && rangeLo != null && rangeHi != null && rangeLo <= rangeHi ? { lo: rangeLo, hi: rangeHi } : null;
-      return calcolaOracolo(gioco, estrazioni, manuale);
-    } catch (e) { console.error(e); return null; }
-  }, [gioco, estrazioni, rangeMode, rangeLo, rangeHi]);
-
-  if (!result) return <div style={{ padding: 24, textAlign: "center", color: "#888" }}>Servono almeno 30 estrazioni.</div>;
-
-  const { ranked, votes, scores, deficit, combos, segnali, stelle, superstar, lastSum, zLast, sumLo, sumHi, rangeAuto, mu, sigma, pool, pick, bussola, neighFreq, dayBias, vertCand } = result;
   const maxVotes = Math.max(...ranked.map((n) => votes[n]), 1);
   const sumMin = Array.from({ length: pick }, (_, i) => i + 1).reduce((a, b) => a + b, 0);
   const sumMax = Array.from({ length: pick }, (_, i) => pool - i).reduce((a, b) => a + b, 0);
