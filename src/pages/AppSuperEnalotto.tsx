@@ -3525,6 +3525,12 @@ export default function App(){
   },[dbDraws,extraDraws]);
 
   const handleUpdate=useCallback((list)=>{setExtraDraws(list);},[]);
+  const [bigliettiOracolo,setBigliettiOracolo]=useState([]);
+  const salvaBigliettoOracolo=async(b)=>{
+    const t={id:Date.now(),nums:b.numeri,superstar:b.superstar||null,date:new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"}),concorso:allDraws[allDraws.length-1]?.n||0,strategy:b.tipo==="sistema"?"oracolo-sistema":"oracolo",sum:b.somma};
+    await salvaTicketSE(t);
+    setBigliettiOracolo(prev=>[...prev,b]);
+  };
   const last=allDraws[allDraws.length-1];
   const lastSum=last?sm(last.nums):0;
 
@@ -3572,7 +3578,7 @@ export default function App(){
         <div style={{display:tab==="estrazioni"?"block":"none"}}><TabEstrazioni onUpdate={handleUpdate}/></div>
         <div style={{display:tab==="biglietti"?"block":"none"}}><TabBiglietti/></div>
         <div style={{display:tab==="performance"?"block":"none"}}><TabPerformance/></div>
-        <div style={{display:tab==="oracolo"?"block":"none"}}><TabOracolo gioco="SE" estrazioni={allDraws.map(d=>({data:d.dataISO||"",nums:d.nums,jolly:d.jolly,superstar:d.superstar}))}/></div>
+        <div style={{display:tab==="oracolo"?"block":"none"}}><TabOracolo gioco="SE" estrazioni={allDraws.map(d=>({data:d.dataISO||"",nums:d.nums,jolly:d.jolly,superstar:d.superstar}))} onSalvaBiglietto={salvaBigliettoOracolo} bigliettiSalvati={bigliettiOracolo}/></div>
         <div style={{marginTop:24,background:"#070712",border:"1px solid #111122",borderRadius:10,padding:12}}>
           <div style={{color:"#353545",fontSize:10,lineHeight:1.7}}>⚠️ Strumento puramente statistico — nessun potere predittivo. Il gioco può causare dipendenza. Vietato ai minori di 18 anni. Dati storici: {allDraws.length} estrazioni (2024–2026).</div>
         </div>
