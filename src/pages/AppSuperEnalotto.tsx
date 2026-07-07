@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { supabase } from '../lib/supabase';
 import TabOracolo from './TabOracolo';
+import TabPoolWheeling from "./TabPoolWheeling";
 
 const DRAWS_BASE = [];
 
@@ -3479,6 +3480,7 @@ const TABS=[
   {id:"biglietti",icon:"🎫",label:"Biglietti"},
   {id:"performance",icon:"📊",label:"Performance"},
 {id:"oracolo",icon:"🔮",label:"Oracolo"},
+{id:"wheeling",icon:"🎯",label:"Pool Wheeling"},
 ];
 
 export default function App(){
@@ -3579,6 +3581,7 @@ export default function App(){
         <div style={{display:tab==="biglietti"?"block":"none"}}><TabBiglietti/></div>
         <div style={{display:tab==="performance"?"block":"none"}}><TabPerformance/></div>
         <div style={{display:tab==="oracolo"?"block":"none"}}><TabOracolo gioco="SE" estrazioni={allDraws.map(d=>({data:d.dataISO||"",nums:d.nums,jolly:d.jolly,superstar:d.superstar}))} onSalvaBiglietto={salvaBigliettoOracolo} bigliettiSalvati={bigliettiOracolo}/></div>
+        <div style={{display:tab==="wheeling"?"block":"none"}}><TabPoolWheeling gioco="SE" estrazioni={allDraws.map(d=>({data:d.dataISO||"",nums:d.nums,jolly:d.jolly,superstar:d.superstar}))} onSalvaBiglietto={salvaBigliettoOracolo} bigliettiSalvati={bigliettiOracolo}/></div>
         <div style={{marginTop:24,background:"#070712",border:"1px solid #111122",borderRadius:10,padding:12}}>
           <div style={{color:"#353545",fontSize:10,lineHeight:1.7}}>⚠️ Strumento puramente statistico — nessun potere predittivo. Il gioco può causare dipendenza. Vietato ai minori di 18 anni. Dati storici: {allDraws.length} estrazioni (2024–2026).</div>
         </div>
